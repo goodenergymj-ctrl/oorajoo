@@ -1057,7 +1057,7 @@ const [obIntro, setObIntro] = useState('')
     await loadProfile()
   }
 
-  if (profile && !profile.intro && !profile.cohort_id && !profile.is_admin) return (
+  if (profile && !profile.is_approved && !profile.is_admin) return (
     <>
       <style>{css}</style>
       <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
