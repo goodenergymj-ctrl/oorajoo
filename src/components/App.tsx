@@ -1057,7 +1057,7 @@ const [obIntro, setObIntro] = useState('')
     await loadProfile()
   }
 
-  if (profile && !profile.is_approved && !profile.is_admin) return (
+  if (profile && !profile.intro && !profile.is_admin) return (
     <>
       <style>{css}</style>
       <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
@@ -1081,6 +1081,29 @@ const [obIntro, setObIntro] = useState('')
       </div>
     </>
   )
+  if (profile && !profile.is_approved && !profile.is_admin) return (
+    <>
+      <style>{css}</style>
+      <div style={{ minHeight: '100vh', background: '#F7F7F7', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', textAlign: 'center', fontFamily: "'Noto Sans KR', system-ui" }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: '#0A0A0A', marginBottom: 8 }}>승인 대기 중이에요</div>
+        <div style={{ fontSize: 14, color: '#555', lineHeight: 1.75, marginBottom: 24 }}>관리자가 가입을 확인하고 있어요.<br />보통 24시간 이내에 처리돼요.</div>
+        <div style={{ fontSize: 11, fontWeight: 700, background: '#F0F0F0', color: '#999', border: '1px solid #E0E0E0', padding: '6px 16px', borderRadius: 20 }}>승인 후 자동으로 입장돼요</div>
+        <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 24, background: 'none', border: 'none', fontSize: 13, color: '#999', cursor: 'pointer' }}>로그아웃</button>
+      </div>
+    </>
+  )
+```
+
+---
+
+최종적으로 이 순서가 되면 돼요:
+```
+if (profile && !profile.intro ...) ← 온보딩
+if (profile && !profile.is_approved ...) ← 승인대기  ← 새로 추가
+if (showPolicy) return ( ← 기존 코드
   if (showPolicy) return (
     <>
       <style>{css}</style>
