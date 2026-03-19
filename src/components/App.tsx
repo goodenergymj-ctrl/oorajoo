@@ -1095,7 +1095,6 @@ const [obIntro, setObIntro] = useState('')
       </div>
     </>
   )
-```
 
   if (showPolicy) return (
     <>
