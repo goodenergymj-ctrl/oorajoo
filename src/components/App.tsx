@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase, type Profile, type Cohort, type FeedItem, type LoungePost, type Notice } from '@/lib/supabase'
 
-// ─── 아이콘 ───────────────────────────────────────────────────
 const Icon = ({ name, size = 16, color = 'currentColor' }: { name: string, size?: number, color?: string }) => {
   const icons: Record<string, JSX.Element> = {
     bell: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
@@ -31,26 +30,21 @@ const CHEERS = [
   "아무것도 안 한 것 같아도, 살아낸 거 맞아요.",
   "완벽한 하루보다 솔직한 하루가 더 오래 기억돼요.",
   "많이 안 해도 돼요. 조금씩 꾸준히가 결국 이겨요.",
-  "오늘 뭔가 이루지 못해도, 내일 다시 하면 돼요.",
-  "잘하려는 마음 자체가 이미 잘하고 있다는 증거예요.",
-  "계획대로 안 됐어도, 그게 실패는 아니에요.",
   "그냥 버티는 것도 전략이에요. 꽤 좋은 전략이에요.",
-  "지금 느리다고 틀린 게 아니에요. 각자의 속도가 있어요.",
   "잘 버틴 날이 쌓이면 단단해져요. 오늘도 그 하루예요.",
+  "지금 이 감정도 지나가요. 항상 그랬잖아요.",
+  "내가 포기하지 않으면, 언젠가는 꼭 돼요.",
+  "오늘 하루 충분히 살았어요.",
+  "지금 느리다고 틀린 게 아니에요. 각자의 속도가 있어요.",
 ]
 
 const TAGS = ['#새벽기상', '#공부중', '#오늘의책', '#소확행', '#힘들다', '#운동', '#감사']
-const REACT_CONFIG = [
-  { key: '❤️', emoji: '❤️' },
-  { key: '👍', emoji: '👍' },
-  { key: '😭', emoji: '😭' },
-  { key: '🔥', emoji: '🔥' },
-]
-const WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일']
+const REACT_CONFIG = [{ key: '❤️', emoji: '❤️' }, { key: '👍', emoji: '👍' }, { key: '😭', emoji: '😭' }, { key: '🔥', emoji: '🔥' }]
 
-// ─── 메인 앱 ─────────────────────────────────────────────────
 export default function App({ session }: { session: any }) {
-  const [tab, setTab] = useState('today')
+
+  // ─── 모든 State 선언 (최상단) ────────────────────────────────
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [cohorts, setCohorts] = useState<Cohort[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
@@ -60,8 +54,13 @@ export default function App({ session }: { session: any }) {
   const [qLoading, setQLoading] = useState(true)
   const [viewingCohortId, setViewingCohortId] = useState<number | null>(null)
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
+  const [tab, setTab] = useState('today')
 
-  // 기록 입력
+  // 온보딩
+  const [obNickname, setObNickname] = useState('')
+  const [obIntro, setObIntro] = useState('')
+
+  // 기록
   const [myRecord, setMyRecord] = useState({ gratitude: '', goal: '', question_answer: '', is_private: false })
   const [submitted, setSubmitted] = useState(false)
   const [cheerMsg] = useState(() => CHEERS[Math.floor(Math.random() * CHEERS.length)])
@@ -89,56 +88,19 @@ export default function App({ session }: { session: any }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showPolicy, setShowPolicy] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
-  const [obNickname, setObNickname] = useState('')
-const [obIntro, setObIntro] = useState('')
 
-  // derived
+  // ─── 파생값 ─────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
   const myCohort = cohorts.find(c => c.id === myCohortId)
   const isEnded = myCohort?.status === 'ended'
   const isAdmin = profile?.is_admin || false
   const myFeed = feed.filter(f => f.cohort_id === myCohortId)
-  const myCohortMembers = [] as Profile[] // loaded separately
 
   // ─── 데이터 로드 ─────────────────────────────────────────────
-  useEffect(() => {
-    loadProfile()
-    loadCohorts()
-    loadNotice()
-    fetchQuestion()
-    window.addEventListener('online', () => setIsOnline(true))
-    window.addEventListener('offline', () => setIsOnline(false))
-  }, [])
-
-  useEffect(() => {
-    if (myCohortId) {
-      loadFeed()
-      loadLounge()
-    }
-  }, [myCohortId])
-
-  useEffect(() => {
-    if (isAdmin) loadPending()
-  }, [isAdmin])
-
-  // 실시간 피드 구독
-  useEffect(() => {
-    const channel = supabase
-      .channel('feed-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed' }, () => loadFeed())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lounge' }, () => loadLounge())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions' }, () => loadFeed())
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [myCohortId])
-
   const loadProfile = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-    if (data) setProfile(data)
+    const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+    setProfile(data)
+    setProfileLoaded(true)
   }
 
   const loadCohorts = async () => {
@@ -147,38 +109,24 @@ const [obIntro, setObIntro] = useState('')
   }
 
   const loadFeed = async () => {
-    const { data } = await supabase
-      .from('feed')
-      .select(`*, profiles(*)`)
-      .eq('cohort_id', myCohortId)
-      .order('created_at', { ascending: false })
+    if (!myCohortId) return
+    const { data } = await supabase.from('feed').select('*, profiles(*)').eq('cohort_id', myCohortId).order('created_at', { ascending: false })
     if (data) setFeed(data as FeedItem[])
   }
 
   const loadLounge = async () => {
-    const { data } = await supabase
-      .from('lounge')
-      .select(`*, profiles(*)`)
-      .eq('cohort_id', myCohortId)
-      .order('created_at', { ascending: false })
+    if (!myCohortId) return
+    const { data } = await supabase.from('lounge').select('*, profiles(*)').eq('cohort_id', myCohortId).order('created_at', { ascending: false })
     if (data) setLounge(data as LoungePost[])
   }
 
   const loadNotice = async () => {
-    const { data } = await supabase
-      .from('notices')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(1).single()
     if (data) setNotice(data)
   }
 
   const loadPending = async () => {
-    const { data } = await supabase
-      .from('pending_members')
-      .select('*, profiles(*)')
-      .order('created_at')
+    const { data } = await supabase.from('pending_members').select('*, profiles(*)').order('created_at')
     if (data) setPendingMembers(data)
   }
 
@@ -188,57 +136,54 @@ const [obIntro, setObIntro] = useState('')
       const res = await fetch('/api/question')
       const data = await res.json()
       setQuestion(data.question)
-    } catch {
-      setQuestion('10년 후의 나는 오늘의 어떤 선택에 가장 감사할까요?')
-    }
+    } catch { setQuestion('10년 후의 나는 오늘의 어떤 선택에 가장 감사할까요?') }
     setQLoading(false)
   }
 
+  useEffect(() => {
+    loadProfile()
+    loadCohorts()
+    loadNotice()
+    fetchQuestion()
+    window.addEventListener('online', () => setIsOnline(true))
+    window.addEventListener('offline', () => setIsOnline(false))
+  }, [])
+
+  useEffect(() => { if (myCohortId) { loadFeed(); loadLounge() } }, [myCohortId])
+  useEffect(() => { if (isAdmin) loadPending() }, [isAdmin])
+
+  useEffect(() => {
+    const channel = supabase.channel('realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feed' }, loadFeed)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lounge' }, loadLounge)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [myCohortId])
+
   // ─── 핸들러 ──────────────────────────────────────────────────
+  const finishOnboard = async () => {
+    if (!obNickname.trim()) return
+    await supabase.from('profiles').update({ nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!' }).eq('id', session.user.id)
+    await loadProfile()
+  }
+
   const submitRecord = async () => {
     if (!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()) return
-    const { error } = await supabase.from('feed').insert({
-      user_id: session.user.id,
-      cohort_id: myCohortId,
-      gratitude: myRecord.gratitude,
-      goal: myRecord.goal,
-      question_answer: myRecord.question_answer,
-      is_private: myRecord.is_private,
-    })
-    if (!error) {
-      setSubmitted(true)
-      loadFeed()
-    }
+    const { error } = await supabase.from('feed').insert({ user_id: session.user.id, cohort_id: myCohortId, gratitude: myRecord.gratitude, goal: myRecord.goal, question_answer: myRecord.question_answer, is_private: myRecord.is_private })
+    if (!error) { setSubmitted(true); loadFeed() }
   }
 
   const handleReact = async (type: 'feed' | 'lounge', targetId: number, emoji: string) => {
-    const key = `${type}-${targetId}-${emoji}`
-    const on = reactions[key]
-    if (on) {
-      await supabase.from('reactions').delete()
-        .eq('user_id', session.user.id)
-        .eq('target_type', type)
-        .eq('target_id', targetId)
-        .eq('emoji', emoji)
-    } else {
-      await supabase.from('reactions').insert({
-        user_id: session.user.id,
-        target_type: type,
-        target_id: targetId,
-        emoji,
-      })
-    }
+    const key = `${type}-${targetId}-${emoji}`, on = reactions[key]
+    if (on) { await supabase.from('reactions').delete().eq('user_id', session.user.id).eq('target_type', type).eq('target_id', targetId).eq('emoji', emoji) }
+    else { await supabase.from('reactions').insert({ user_id: session.user.id, target_type: type, target_id: targetId, emoji }) }
     setReactions(p => ({ ...p, [key]: !on }))
   }
 
   const submitComment = async (feedId: number) => {
     const text = (commentInput[feedId] || '').trim()
     if (!text) return
-    await supabase.from('comments').insert({
-      user_id: session.user.id,
-      feed_id: feedId,
-      content: text,
-    })
+    await supabase.from('comments').insert({ user_id: session.user.id, feed_id: feedId, content: text })
     setCommentInput(p => ({ ...p, [feedId]: '' }))
     loadFeed()
   }
@@ -247,19 +192,11 @@ const [obIntro, setObIntro] = useState('')
     if (!newPost.trim()) return
     let imageUrl = null
     if (postImage) {
-      const formData = new FormData()
-      formData.append('file', postImage)
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
-      imageUrl = data.url
+      const fd = new FormData(); fd.append('file', postImage)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const d = await res.json(); imageUrl = d.url
     }
-    await supabase.from('lounge').insert({
-      user_id: session.user.id,
-      cohort_id: myCohortId,
-      content: newPost,
-      tag: postTag || null,
-      image_url: imageUrl,
-    })
+    await supabase.from('lounge').insert({ user_id: session.user.id, cohort_id: myCohortId, content: newPost, tag: postTag || null, image_url: imageUrl })
     setNewPost(''); setPostTag(''); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
     loadLounge()
   }
@@ -267,17 +204,13 @@ const [obIntro, setObIntro] = useState('')
   const openShare = (item: any, type: 'feed' | 'lounge') => {
     const name = (item.profiles as Profile)?.nickname || ''
     const url = `${window.location.origin}/${type}/${item.id}`
-    const text = type === 'feed'
-      ? `${name}의 우라주 챌린지\n\n🙏 감사 | ${item.gratitude}\n🎯 목표 | ${item.goal}\n\n"${item.question_answer}"\n\n진정한 우상향 라이프 주인이 되는 날까지!\n#우라주챌린지\n${url}`
-      : `${name}의 우라주 챌린지 라운지\n\n${item.tag || ''} ${item.content}\n\n#우라주챌린지\n${url}`
+    const text = type === 'feed' ? `${name}의 우라주 챌린지\n\n🙏 ${item.gratitude}\n🎯 ${item.goal}\n\n"${item.question_answer}"\n\n#우라주챌린지\n${url}` : `${name}의 우라주 챌린지 라운지\n\n${item.tag || ''} ${item.content}\n\n#우라주챌린지\n${url}`
     setShareModal({ text, url })
   }
 
   const doShare = async () => {
     if (!shareModal) return
-    if (navigator.share) {
-      try { await navigator.share({ title: '우라주 챌린지', text: shareModal.text, url: shareModal.url }); setShareModal(null); return } catch {}
-    }
+    if (navigator.share) { try { await navigator.share({ title: '우라주 챌린지', text: shareModal.text, url: shareModal.url }); setShareModal(null); return } catch {} }
     try { await navigator.clipboard.writeText(shareModal.text) } catch {}
     setCopiedShare(true)
     setTimeout(() => { setCopiedShare(false); setShareModal(null) }, 2000)
@@ -285,19 +218,10 @@ const [obIntro, setObIntro] = useState('')
 
   const submitNotice = async () => {
     if (!adminForm.title.trim() || !adminForm.body.trim()) return
-    const poll = adminForm.hasPoll && adminForm.pollQ.trim()
-      ? { question: adminForm.pollQ, options: adminForm.pollOptions.filter(o => o.trim()), votes: Object.fromEntries(adminForm.pollOptions.filter(o => o.trim()).map(o => [o, 0])), myVotes: [] }
-      : null
-    await supabase.from('notices').insert({
-      title: adminForm.title,
-      body: adminForm.body,
-      link: adminForm.link || null,
-      poll,
-      cohort_id: myCohortId,
-    })
+    const poll = adminForm.hasPoll && adminForm.pollQ.trim() ? { question: adminForm.pollQ, options: adminForm.pollOptions.filter(o => o.trim()), votes: Object.fromEntries(adminForm.pollOptions.filter(o => o.trim()).map(o => [o, 0])), myVotes: [] } : null
+    await supabase.from('notices').insert({ title: adminForm.title, body: adminForm.body, link: adminForm.link || null, poll, cohort_id: myCohortId })
     setAdminForm({ title: '', body: '', link: '', hasPoll: false, pollQ: '', pollOptions: ['', ''] })
-    setShowAdmin(false)
-    loadNotice()
+    setShowAdmin(false); loadNotice()
   }
 
   const approveMember = async (pendingId: number, userId: string, targetCohortId: number) => {
@@ -306,78 +230,40 @@ const [obIntro, setObIntro] = useState('')
     loadPending()
   }
 
-  const rejectMember = async (pendingId: number) => {
-    await supabase.from('pending_members').delete().eq('id', pendingId)
-    loadPending()
-  }
-
   const saveCohort = async () => {
     if (!editingCohort) return
-    await supabase.from('cohorts').update({
-      start_date: editingCohort.start_date,
-      end_date: editingCohort.end_date,
-      status: editingCohort.status,
-    }).eq('id', editingCohort.id)
-    setEditingCohort(null)
-    loadCohorts()
+    await supabase.from('cohorts').update({ start_date: editingCohort.start_date, end_date: editingCohort.end_date, status: editingCohort.status }).eq('id', editingCohort.id)
+    setEditingCohort(null); loadCohorts()
   }
 
   const saveProfile = async () => {
-    const tags = typeof editData.tags === 'string'
-      ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
-      : editData.tags
-    await supabase.from('profiles').update({
-      intro: editData.intro,
-      tags,
-      threads_id: editData.threads_id || null,
-      insta_id: editData.insta_id || null,
-      naver_blog: editData.naver_blog || null,
-    }).eq('id', session.user.id)
-    loadProfile()
-    setEditingProfile(false)
-    setSelectedProfile(null)
-  }
-
-  const deleteAccount = async () => {
-    await supabase.auth.signOut()
+    const tags = typeof editData.tags === 'string' ? editData.tags.split(' ').filter((t: string) => t.startsWith('#')) : editData.tags
+    await supabase.from('profiles').update({ intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
+    loadProfile(); setEditingProfile(false); setSelectedProfile(null)
   }
 
   const formatTime = (ts: string) => {
-    const d = new Date(ts)
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - d.getTime()) / 1000)
+    const d = new Date(ts), now = new Date(), diff = Math.floor((now.getTime() - d.getTime()) / 1000)
     if (diff < 60) return '방금 전'
     if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
     if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
     return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
   }
 
-  const getReactionCount = (item: FeedItem | LoungePost, emoji: string, type: 'feed' | 'lounge') => {
-    return 0 // 실제로는 reactions 테이블에서 집계
-  }
-
-  // ─── CSS ──────────────────────────────────────────────────────
+  // ─── CSS ─────────────────────────────────────────────────────
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
     textarea,input,button,select{font-family:inherit;}
     textarea:focus,input:focus{outline:none;}
     button{cursor:pointer;}
-    :root{
-      --bg:#F7F7F7;--white:#FFF;--surface:#F0F0F0;
-      --black:#0A0A0A;--ink:#1A1A1A;--ink2:#555;--ink3:#999;
-      --border:#E0E0E0;--border2:#C8C8C8;
-      --r:12px;--r2:18px;
-      --sh:0 1px 3px rgba(0,0,0,0.06);--sh2:0 4px 16px rgba(0,0,0,0.10);
-    }
+    :root{--bg:#F7F7F7;--white:#FFF;--surface:#F0F0F0;--black:#0A0A0A;--ink:#1A1A1A;--ink2:#555;--ink3:#999;--border:#E0E0E0;--border2:#C8C8C8;--r:12px;--r2:18px;--sh:0 1px 3px rgba(0,0,0,0.06);--sh2:0 4px 16px rgba(0,0,0,0.10);}
     .app{max-width:390px;margin:0 auto;min-height:100vh;background:var(--bg);font-family:'Noto Sans KR',system-ui,sans-serif;color:var(--ink);padding-bottom:100px;}
     .offline{background:#333;color:white;text-align:center;padding:8px;font-size:11px;font-weight:700;}
     .hdr{padding:14px 18px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;background:rgba(247,247,247,0.92);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);}
     .hdr-wm{font-size:17px;font-weight:900;letter-spacing:-0.8px;color:var(--black);}
     .hdr-sub{font-size:10px;color:var(--ink3);margin-top:2px;}
     .hdr-r{display:flex;align-items:center;gap:8px;}
-    .notif-btn{position:relative;background:none;border:none;padding:4px;display:flex;align-items:center;}
-    .notif-dot{position:absolute;top:2px;right:2px;width:8px;height:8px;background:var(--black);border-radius:50%;border:1.5px solid var(--bg);}
     .hdr-chip{background:var(--black);color:white;font-size:10px;font-weight:700;padding:5px 12px;border-radius:40px;}
     .tab-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:358px;background:var(--white);border:1px solid var(--border2);border-radius:32px;display:flex;z-index:20;padding:5px;gap:2px;box-shadow:0 4px 20px rgba(0,0,0,0.08);}
     .tab-btn{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;font-size:9px;font-weight:700;letter-spacing:0.3px;border-radius:26px;transition:all 0.2s;color:var(--ink3);}
@@ -404,7 +290,7 @@ const [obIntro, setObIntro] = useState('')
     @keyframes pulse{0%,100%{opacity:.4}50%{opacity:.9}}
     .wc-private{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 13px;background:var(--surface);border-radius:10px;cursor:pointer;}
     .wc-private-lbl{font-size:12px;font-weight:600;color:var(--ink2);flex:1;}
-    .wc-submit{width:100%;background:var(--black);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:900;transition:all 0.15s;}
+    .wc-submit{width:100%;background:var(--black);color:white;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:900;}
     .wc-submit:disabled{background:var(--border);color:var(--ink3);}
     .wc-done{text-align:center;padding:26px 18px 20px;}
     .wc-done-icon{width:50px;height:50px;background:var(--surface);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;border:1.5px solid var(--border2);}
@@ -418,20 +304,9 @@ const [obIntro, setObIntro] = useState('')
     .notice-bar-txt{font-size:10px;font-weight:800;color:white;letter-spacing:1px;text-transform:uppercase;}
     .notice-bar-date{font-size:10px;color:rgba(255,255,255,0.45);margin-left:auto;}
     .notice-body{background:var(--white);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r2) var(--r2);padding:14px 16px;}
-    .notice-title{font-size:14px;font-weight:900;color:var(--black);margin-bottom:6px;}
-    .notice-text{font-size:13px;color:var(--ink2);line-height:1.7;}
-    .poll-wrap{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
-    .poll-q{font-size:13px;font-weight:700;color:var(--black);margin-bottom:10px;}
-    .poll-opt{position:relative;margin-bottom:7px;border-radius:10px;overflow:hidden;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);transition:border-color 0.2s;}
-    .poll-opt.voted{border-color:var(--black);}
-    .poll-bar{position:absolute;left:0;top:0;height:100%;background:var(--surface);transition:width 0.4s;}
-    .poll-inner{position:relative;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
-    .poll-lbl{font-size:13px;font-weight:600;color:var(--ink);}
-    .poll-opt.voted .poll-lbl{color:var(--black);font-weight:700;}
-    .poll-pct{font-size:12px;font-weight:700;color:var(--ink3);}
-    .fc{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin:0 16px 10px;box-shadow:var(--sh);transition:box-shadow 0.2s;}
+    .fc{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin:0 16px 10px;box-shadow:var(--sh);}
     .fc-top{display:flex;align-items:center;gap:10px;margin-bottom:13px;}
-    .av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0;cursor:pointer;font-size:12px;color:white;transition:transform 0.15s;}
+    .av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0;cursor:pointer;font-size:12px;color:white;}
     .fc-name{font-size:13px;font-weight:700;color:var(--black);cursor:pointer;}
     .me-tag{font-size:9px;font-weight:700;color:white;background:var(--black);padding:2px 6px;border-radius:20px;margin-left:5px;}
     .fc-time{font-size:10px;color:var(--ink3);margin-top:1px;}
@@ -442,7 +317,7 @@ const [obIntro, setObIntro] = useState('')
     .fc-q-lbl{font-size:9px;font-weight:700;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;}
     .fc-q-txt{font-size:12px;color:var(--ink2);line-height:1.65;font-style:italic;}
     .react-bar{display:flex;gap:5px;padding-top:11px;border-top:1px solid var(--border);align-items:center;margin-top:12px;}
-    .r-btn{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 10px;background:var(--bg);transition:all 0.15s;cursor:pointer;}
+    .r-btn{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 10px;background:var(--bg);cursor:pointer;}
     .r-btn.on{background:var(--black);border-color:var(--black);}
     .r-em{font-size:14px;line-height:1;}
     .r-cnt{font-size:11px;font-weight:700;color:var(--ink3);}
@@ -487,18 +362,16 @@ const [obIntro, setObIntro] = useState('')
     .hist-date{font-size:9px;font-weight:700;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:11px;}
     .group-hero{margin:16px 16px 12px;background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:18px;box-shadow:var(--sh);}
     .gp-name{font-size:22px;font-weight:900;letter-spacing:-0.8px;color:var(--black);margin-bottom:3px;}
-    .gp-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;background:var(--black);color:white;padding:4px 11px;border-radius:20px;margin-bottom:9px;}
+    .gp-badge{display:inline-flex;font-size:10px;font-weight:700;background:var(--black);color:white;padding:4px 11px;border-radius:20px;margin-bottom:9px;}
     .gp-meta{font-size:11px;color:var(--ink3);margin-bottom:13px;}
     .gp-bar{height:3px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:5px;}
     .gp-fill{height:100%;background:var(--black);border-radius:3px;}
     .gp-bar-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--ink3);font-weight:600;}
     .mc{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:15px;margin:0 16px 9px;cursor:pointer;transition:all 0.18s;box-shadow:var(--sh);}
-    .mc:hover{border-color:var(--border2);box-shadow:var(--sh2);}
     .mc-top{display:flex;align-items:center;gap:11px;margin-bottom:9px;}
     .mc-av{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:white;flex-shrink:0;}
     .mc-name{font-size:14px;font-weight:900;color:var(--black);}
     .mc-sub{font-size:10px;color:var(--ink3);margin-top:1px;}
-    .mc-streak{display:flex;align-items:center;gap:4px;margin-left:auto;font-size:11px;font-weight:700;color:var(--black);background:var(--surface);padding:4px 10px;border-radius:20px;border:1px solid var(--border);}
     .mc-intro{font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:9px;}
     .mc-tags{display:flex;gap:5px;flex-wrap:wrap;}
     .mc-tag{font-size:10px;font-weight:700;color:var(--ink2);background:var(--surface);border:1px solid var(--border);padding:3px 8px;border-radius:20px;}
@@ -533,8 +406,6 @@ const [obIntro, setObIntro] = useState('')
     .e-save{width:100%;background:var(--black);color:white;border:none;border-radius:14px;padding:13px;font-size:14px;font-weight:900;margin-top:3px;cursor:pointer;}
     .share-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
     .share-modal{background:var(--white);border-radius:24px 24px 0 0;padding:22px 20px 44px;width:100%;max-width:390px;}
-    .share-title{font-size:15px;font-weight:900;color:var(--black);margin-bottom:3px;}
-    .share-sub{font-size:12px;color:var(--ink3);margin-bottom:14px;}
     .share-txt-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:12px;color:var(--ink2);line-height:1.7;white-space:pre-wrap;word-break:break-all;margin-bottom:14px;max-height:130px;overflow-y:auto;}
     .share-copy{width:100%;background:var(--black);color:white;border:none;border-radius:14px;padding:13px;font-size:14px;font-weight:900;margin-bottom:8px;cursor:pointer;}
     .share-cancel{width:100%;background:none;border:none;font-size:13px;color:var(--ink3);padding:10px;cursor:pointer;}
@@ -566,30 +437,100 @@ const [obIntro, setObIntro] = useState('')
     .reject-btn{background:var(--surface);color:var(--ink2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;margin-left:4px;}
     .confirm-bg{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
     .confirm-modal{background:var(--white);border-radius:20px;padding:24px 20px;width:calc(100% - 40px);max-width:360px;}
-    .confirm-title{font-size:16px;font-weight:900;color:#DC2626;margin-bottom:8px;}
-    .confirm-text{font-size:13px;color:var(--ink2);line-height:1.65;margin-bottom:20px;}
-    .confirm-btns{display:flex;gap:8px;}
-    .confirm-ok{flex:1;background:#DC2626;color:white;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:900;cursor:pointer;}
-    .confirm-cancel{flex:1;background:var(--surface);color:var(--ink2);border:none;border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;}
     .policy-page{min-height:100vh;background:var(--bg);}
     .policy-hdr{background:var(--black);padding:18px;display:flex;align-items:center;gap:12px;}
   `
 
-  // ─── 렌더 함수들 ─────────────────────────────────────────────
+  // ─── 화면 분기 (반드시 모든 훅 선언 후) ──────────────────────
 
+  // 1. 프로필 로딩 중
+  if (!profileLoaded) return (
+    <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontFamily: 'system-ui' }}>
+      로딩 중...
+    </div>
+  )
+
+  // 2. 온보딩 (소개 없는 신규 유저, 관리자 제외)
+  if (profile && !profile.intro && !profile.is_admin) return (
+    <>
+      <style>{css}</style>
+      <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
+        <div style={{ background: '#0A0A0A', padding: '46px 28px 34px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: 9 }}>STEP 1 / 1</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: 'white', lineHeight: 1.35, whiteSpace: 'pre-line' }}>{'나는 이런\n사람이에요!'}</div>
+        </div>
+        <div style={{ flex: 1, padding: '26px 22px', background: '#F7F7F7' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임</div>
+          <input
+            style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginBottom: 16, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            placeholder="그룹에서 불릴 이름" value={obNickname} onChange={e => setObNickname(e.target.value)} maxLength={10} autoFocus />
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>자기소개</div>
+          <textarea
+            style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 14, color: '#1A1A1A', resize: 'none' as const, lineHeight: 1.7, marginBottom: 8, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            rows={3} placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..." value={obIntro} onChange={e => setObIntro(e.target.value)} />
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 20, lineHeight: 1.6 }}>가입 신청 후 관리자 승인을 기다려주세요. 보통 24시간 이내에 처리돼요.</div>
+          <button
+            style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' }}
+            onClick={finishOnboard} disabled={!obNickname.trim()}>
+            킵고잉! 시작하기 🌿
+          </button>
+        </div>
+      </div>
+    </>
+  )
+
+  // 3. 승인 대기 (관리자 제외)
+  if (profile && !profile.is_approved && !profile.is_admin) return (
+    <>
+      <style>{css}</style>
+      <div style={{ minHeight: '100vh', background: '#F7F7F7', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', textAlign: 'center', fontFamily: "'Noto Sans KR', system-ui" }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: '#0A0A0A', marginBottom: 8 }}>승인 대기 중이에요</div>
+        <div style={{ fontSize: 14, color: '#555', lineHeight: 1.75, marginBottom: 24 }}>관리자가 가입을 확인하고 있어요.<br />보통 24시간 이내에 처리돼요.</div>
+        <div style={{ fontSize: 11, fontWeight: 700, background: '#F0F0F0', color: '#999', border: '1px solid #E0E0E0', padding: '6px 16px', borderRadius: 20 }}>승인 후 자동으로 입장돼요</div>
+        <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 24, background: 'none', border: 'none', fontSize: 13, color: '#999', cursor: 'pointer' }}>로그아웃</button>
+      </div>
+    </>
+  )
+
+  // 4. 환불 정책 페이지
+  if (showPolicy) return (
+    <>
+      <style>{css}</style>
+      <div className="policy-page">
+        <div className="policy-hdr">
+          <button onClick={() => setShowPolicy(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="close" size={20} color="white" /></button>
+          <span style={{ fontSize: 16, fontWeight: 900, color: 'white' }}>환불 정책 및 이용약관</span>
+        </div>
+        <div style={{ padding: '20px 18px' }}>
+          {[
+            { title: '환불 정책', text: '• 챌린지 시작 전(D-1까지): 전액 환불\n• 챌린지 시작 후 3일 이내: 50% 환불\n• 챌린지 시작 4일 이후: 환불 불가\n• 운영자 귀책 사유 발생 시: 전액 환불\n\n환불 문의: contact@oorajoo.kr' },
+            { title: '개인정보 처리방침', text: '수집 항목: 이메일, 닉네임, 작성 기록\n보유 기간: 회원 탈퇴 후 30일 이내 삭제\n제3자 제공: 없음' },
+            { title: '이용약관', text: '• 타인을 비방하는 내용은 관리자 판단 하에 삭제될 수 있어요.\n• 챌린지 기록은 해당 기수 멤버들과 공유돼요.\n• 서비스 운영 정책은 사전 공지 후 변경될 수 있어요.' },
+          ].map(({ title, text }) => (
+            <div key={title} style={{ marginBottom: 22 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 8 }}>{title}</div>
+              <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+
+  // ─── 렌더 함수 ───────────────────────────────────────────────
   const renderFeedCard = (item: FeedItem) => {
-    const memberProfile = item.profiles as Profile
+    const mp = item.profiles as Profile
     const isMe = item.user_id === session.user.id
     if (item.is_private && !isMe) return null
     return (
       <div key={item.id} className="fc">
         <div className="fc-top">
-          <div className="av" style={{ width: 36, height: 36, background: memberProfile?.color || '#333' }}
-            onClick={() => setSelectedProfile(memberProfile)}>
-            {memberProfile?.nickname?.[0] || '?'}
-          </div>
+          <div className="av" style={{ width: 36, height: 36, background: mp?.color || '#333' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname?.[0] || '?'}</div>
           <div style={{ flex: 1 }}>
-            <span className="fc-name" onClick={() => setSelectedProfile(memberProfile)}>{memberProfile?.nickname}</span>
+            <span className="fc-name" onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
             {isMe && <span className="me-tag">나</span>}
             {item.is_private && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 7px', borderRadius: 20, marginLeft: 4 }}>나만</span>}
             <div className="fc-time">{formatTime(item.created_at)}</div>
@@ -604,39 +545,19 @@ const [obIntro, setObIntro] = useState('')
         {!item.is_private && (
           <div className="react-bar">
             {REACT_CONFIG.map(({ key, emoji }) => {
-              const rkey = `feed-${item.id}-${key}`
-              const on = reactions[rkey]
-              return (
-                <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('feed', item.id, key)}>
-                  <span className="r-em">{emoji}</span>
-                  <span className="r-cnt">0</span>
-                </button>
-              )
+              const rk = `feed-${item.id}-${key}`, on = reactions[rk]
+              return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('feed', item.id, key)}><span className="r-em">{emoji}</span><span className="r-cnt">0</span></button>
             })}
-            <button className="cmt-btn" onClick={() => setExpandedComments(p => ({ ...p, [item.id]: !p[item.id] }))}>
-              <Icon name="chat" size={13} color="var(--ink3)" />
-            </button>
-            <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(item, 'feed')}>
-              <Icon name="share" size={13} color="var(--ink3)" /><span>공유</span>
-            </button>
+            <button className="cmt-btn" onClick={() => setExpandedComments(p => ({ ...p, [item.id]: !p[item.id] }))}><Icon name="chat" size={13} color="var(--ink3)" /></button>
+            <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(item, 'feed')}><Icon name="share" size={13} color="var(--ink3)" /><span>공유</span></button>
           </div>
         )}
         {expandedComments[item.id] && (
           <div className="cmt-area">
-            {(item.comments || []).map((c: any, i: number) => (
-              <div key={i} className="cmt-item">
-                <span className="cmt-author">{c.profiles?.nickname || '?'}</span>
-                <span className="cmt-text">{c.content}</span>
-              </div>
-            ))}
+            {(item.comments || []).map((c: any, i: number) => <div key={i} className="cmt-item"><span className="cmt-author">{c.profiles?.nickname || '?'}</span><span className="cmt-text">{c.content}</span></div>)}
             <div className="cmt-row">
-              <input className="cmt-input" placeholder="한마디 남기기..."
-                value={commentInput[item.id] || ''}
-                onChange={e => setCommentInput(p => ({ ...p, [item.id]: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && submitComment(item.id)} />
-              <button className="cmt-send" onClick={() => submitComment(item.id)}>
-                <Icon name="send" size={13} color="white" />
-              </button>
+              <input className="cmt-input" placeholder="한마디 남기기..." value={commentInput[item.id] || ''} onChange={e => setCommentInput(p => ({ ...p, [item.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && submitComment(item.id)} />
+              <button className="cmt-send" onClick={() => submitComment(item.id)}><Icon name="send" size={13} color="white" /></button>
             </div>
           </div>
         )}
@@ -648,19 +569,14 @@ const [obIntro, setObIntro] = useState('')
     <>
       {notice && (
         <div className="notice-card">
-          <div className="notice-bar">
-            <Icon name="bell" size={12} color="white" />
-            <span className="notice-bar-txt">관리자 공지</span>
-            <span className="notice-bar-date">{formatTime(notice.created_at)}</span>
-          </div>
+          <div className="notice-bar"><Icon name="bell" size={12} color="white" /><span className="notice-bar-txt">관리자 공지</span><span className="notice-bar-date">{formatTime(notice.created_at)}</span></div>
           <div className="notice-body">
-            <div className="notice-title">{notice.title}</div>
-            <div className="notice-text">{notice.body}</div>
-            {notice.link && <a href={notice.link} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--black)', background: 'var(--surface)', padding: '5px 12px', borderRadius: 20, textDecoration: 'none', border: '1px solid var(--border)' }}>자세히 보기 →</a>}
+            <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)', marginBottom: 6 }}>{notice.title}</div>
+            <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.7 }}>{notice.body}</div>
+            {notice.link && <a href={notice.link} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', marginTop: 10, fontSize: 12, fontWeight: 700, color: 'var(--black)', background: 'var(--surface)', padding: '5px 12px', borderRadius: 20, textDecoration: 'none', border: '1px solid var(--border)' }}>자세히 보기 →</a>}
           </div>
         </div>
       )}
-
       {isEnded && (
         <div className="ended-banner">
           <Icon name="lock" size={16} color="var(--ink3)" />
@@ -670,12 +586,10 @@ const [obIntro, setObIntro] = useState('')
           </div>
         </div>
       )}
-
       <div className="write-section">
         {isEnded ? (
           <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 20, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink2)', marginBottom: 4 }}>종료된 챌린지예요</div>
-            <div style={{ fontSize: 12, color: 'var(--ink3)' }}>새 기수에 참여하면 다시 기록할 수 있어요</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink2)' }}>종료된 챌린지예요</div>
           </div>
         ) : (
           <div className="write-card">
@@ -689,36 +603,20 @@ const [obIntro, setObIntro] = useState('')
                 </div>
               ) : (
                 <>
-                  <div className="wc-row">
-                    <span className="wc-title">오늘의 기록</span>
-                    <span className="wc-date">{new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}</span>
-                  </div>
-                  {[
-                    { key: 'gratitude', dot: '#1A1A1A', label: '오늘의 감사', ph: '작은 것도 충분해요!' },
-                    { key: 'goal', dot: '#555', label: '오늘의 목표', ph: '오늘 딱 하나만 이룬다면?' },
-                  ].map(({ key, dot, label, ph }) => (
+                  <div className="wc-row"><span className="wc-title">오늘의 기록</span><span className="wc-date">{new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' })}</span></div>
+                  {[{ key: 'gratitude', dot: '#1A1A1A', label: '오늘의 감사', ph: '작은 것도 충분해요!' }, { key: 'goal', dot: '#555', label: '오늘의 목표', ph: '오늘 딱 하나만 이룬다면?' }].map(({ key, dot, label, ph }) => (
                     <div key={key} className="wc-field">
-                      <div className="wc-label">
-                        <div className="wc-dot" style={{ background: dot }} />
-                        <span className="wc-label-txt">{label}</span>
-                      </div>
-                      <textarea className="wc-ta" rows={2} placeholder={ph}
-                        value={(myRecord as any)[key]}
-                        onChange={e => setMyRecord(p => ({ ...p, [key]: e.target.value }))} />
+                      <div className="wc-label"><div className="wc-dot" style={{ background: dot }} /><span className="wc-label-txt">{label}</span></div>
+                      <textarea className="wc-ta" rows={2} placeholder={ph} value={(myRecord as any)[key]} onChange={e => setMyRecord(p => ({ ...p, [key]: e.target.value }))} />
                     </div>
                   ))}
                   <div className="wc-field">
-                    <div className="wc-label">
-                      <div className="wc-dot" style={{ background: '#999' }} />
-                      <span className="wc-label-txt">오늘의 질문</span>
-                    </div>
+                    <div className="wc-label"><div className="wc-dot" style={{ background: '#999' }} /><span className="wc-label-txt">오늘의 질문</span></div>
                     <div className="wc-q-box">
                       <div className="wc-q-lbl">✦ AI DAILY QUESTION</div>
                       {qLoading ? <><div className="wc-shimmer" /><div className="wc-shimmer s" /></> : <div className="wc-q-txt">{question}</div>}
                     </div>
-                    <textarea className="wc-ta" rows={2} placeholder="자유롭게 한 줄이라도!"
-                      value={myRecord.question_answer}
-                      onChange={e => setMyRecord(p => ({ ...p, question_answer: e.target.value }))} />
+                    <textarea className="wc-ta" rows={2} placeholder="자유롭게 한 줄이라도!" value={myRecord.question_answer} onChange={e => setMyRecord(p => ({ ...p, question_answer: e.target.value }))} />
                   </div>
                   <div className="wc-private" onClick={() => setMyRecord(p => ({ ...p, is_private: !p.is_private }))}>
                     <Icon name={myRecord.is_private ? 'eyeOff' : 'eye'} size={16} color="var(--ink2)" />
@@ -727,22 +625,14 @@ const [obIntro, setObIntro] = useState('')
                       <div style={{ position: 'absolute', top: 2, left: myRecord.is_private ? 17 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                     </div>
                   </div>
-                  <button className="wc-submit"
-                    disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()}
-                    onClick={submitRecord}>
-                    공유하기
-                  </button>
+                  <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()} onClick={submitRecord}>공유하기</button>
                 </>
               )}
             </div>
           </div>
         )}
       </div>
-
-      <div className="sec-label">
-        {isEnded ? `${myCohort?.name} 기록 보관함` : '멤버들의 오늘'}
-        <span className="sec-sub">{myFeed.length}개</span>
-      </div>
+      <div className="sec-label">{isEnded ? `${myCohort?.name} 기록 보관함` : '멤버들의 오늘'}<span className="sec-sub">{myFeed.length}개</span></div>
       {myFeed.map(item => renderFeedCard(item))}
     </>
   )
@@ -751,40 +641,22 @@ const [obIntro, setObIntro] = useState('')
     <>
       <div className="lounge-hd">
         <span className="lounge-t">라운지</span>
-        <button className="fab" onClick={() => setShowPostInput(p => !p)}>
-          {showPostInput ? <><Icon name="close" size={13} color="white" />닫기</> : <><Icon name="plus" size={13} color="white" />남기기</>}
-        </button>
+        <button className="fab" onClick={() => setShowPostInput(p => !p)}>{showPostInput ? <><Icon name="close" size={13} color="white" />닫기</> : <><Icon name="plus" size={13} color="white" />남기기</>}</button>
       </div>
       {showPostInput && (
         <div className="post-box">
-          <textarea className="post-ta" rows={3} placeholder="오늘 하루 어땠어요? 뭐든 편하게 ✍️"
-            value={newPost} onChange={e => setNewPost(e.target.value)} autoFocus />
+          <textarea className="post-ta" rows={3} placeholder="오늘 하루 어땠어요? ✍️" value={newPost} onChange={e => setNewPost(e.target.value)} autoFocus />
           {postImagePreview && (
             <div style={{ position: 'relative', marginBottom: 10 }}>
               <img src={postImagePreview} style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 10 }} alt="" />
-              <button onClick={() => { setPostImage(null); setPostImagePreview(null) }}
-                style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Icon name="close" size={11} color="white" />
-              </button>
+              <button onClick={() => { setPostImage(null); setPostImagePreview(null) }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="close" size={11} color="white" /></button>
             </div>
           )}
-          <div className="tag-row">
-            {TAGS.map(t => (
-              <button key={t} className={`tag-chip ${postTag === t ? 'sel' : 'unsel'}`}
-                onClick={() => setPostTag(p => p === t ? '' : t)}>{t}</button>
-            ))}
-          </div>
+          <div className="tag-row">{TAGS.map(t => <button key={t} className={`tag-chip ${postTag === t ? 'sel' : 'unsel'}`} onClick={() => setPostTag(p => p === t ? '' : t)}>{t}</button>)}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 10, padding: '7px 13px', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer', fontWeight: 600 }}>
               <Icon name="plus" size={13} color="var(--ink3)" />사진
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                setPostImage(file)
-                const reader = new FileReader()
-                reader.onload = ev => setPostImagePreview(ev.target?.result as string)
-                reader.readAsDataURL(file)
-              }} />
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; setPostImage(f); const r = new FileReader(); r.onload = ev => setPostImagePreview(ev.target?.result as string); r.readAsDataURL(f) }} />
             </label>
             <button style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={submitPost}>공유하기</button>
             <button style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer' }} onClick={() => { setShowPostInput(false); setNewPost(''); setPostTag(''); setPostImage(null); setPostImagePreview(null) }}>취소</button>
@@ -793,37 +665,22 @@ const [obIntro, setObIntro] = useState('')
       )}
       {lounge.length === 0 && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 글이 없어요. 첫 번째로 남겨봐요!</div>}
       {lounge.map(post => {
-        const memberProfile = post.profiles as Profile
-        const isMe = post.user_id === session.user.id
+        const mp = post.profiles as Profile, isMe = post.user_id === session.user.id
         return (
           <div key={post.id} className="lc">
             {post.image_url && <img src={post.image_url} style={{ width: '100%', height: 164, objectFit: 'cover', display: 'block' }} alt="" />}
             <div className="lc-body">
               <div className="lc-top">
-                <div className="av" style={{ width: 30, height: 30, fontSize: 11, background: memberProfile?.color || '#333' }}
-                  onClick={() => setSelectedProfile(memberProfile)}>
-                  {memberProfile?.nickname?.[0] || '?'}
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(memberProfile)}>{memberProfile?.nickname}</span>
+                <div className="av" style={{ width: 30, height: 30, fontSize: 11, background: mp?.color || '#333' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname?.[0] || '?'}</div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
                 {isMe && <span className="me-tag">나</span>}
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>{formatTime(post.created_at)}</span>
               </div>
               {post.tag && <div className="lc-tag">{post.tag}</div>}
               <div className="lc-text">{post.content}</div>
               <div className="react-bar">
-                {REACT_CONFIG.map(({ key, emoji }) => {
-                  const rkey = `lounge-${post.id}-${key}`
-                  const on = reactions[rkey]
-                  return (
-                    <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}>
-                      <span className="r-em">{emoji}</span>
-                      <span className="r-cnt">0</span>
-                    </button>
-                  )
-                })}
-                <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(post, 'lounge')}>
-                  <Icon name="share" size={13} color="var(--ink3)" /><span>공유</span>
-                </button>
+                {REACT_CONFIG.map(({ key, emoji }) => { const rk = `lounge-${post.id}-${key}`, on = reactions[rk]; return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}><span className="r-em">{emoji}</span><span className="r-cnt">0</span></button> })}
+                <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(post, 'lounge')}><Icon name="share" size={13} color="var(--ink3)" /><span>공유</span></button>
               </div>
             </div>
           </div>
@@ -852,10 +709,6 @@ const [obIntro, setObIntro] = useState('')
           <div className="hist-date">{formatTime(item.created_at)}</div>
           <div className="fc-row"><span className="fc-badge">🙏 감사</span><span className="fc-text">{item.gratitude}</span></div>
           <div className="fc-row"><span className="fc-badge">🎯 목표</span><span className="fc-text">{item.goal}</span></div>
-          <div className="fc-q" style={{ marginTop: 4 }}>
-            <div className="fc-q-lbl">✦ QUESTION</div>
-            <div className="fc-q-txt">{item.question_answer}</div>
-          </div>
         </div>
       ))}
     </>
@@ -874,8 +727,7 @@ const [obIntro, setObIntro] = useState('')
       </div>
       <div style={{ display: 'flex', gap: 5, padding: '0 16px 8px', overflowX: 'auto' }}>
         {cohorts.filter(c => c.status !== 'upcoming').map(c => (
-          <button key={c.id} onClick={() => setViewingCohortId(c.id)}
-            style={{ flexShrink: 0, padding: '5px 13px', fontSize: 11, fontWeight: 700, borderRadius: 20, border: '1px solid', background: myCohortId === c.id ? 'var(--black)' : 'none', color: myCohortId === c.id ? 'white' : 'var(--ink3)', borderColor: myCohortId === c.id ? 'var(--black)' : 'var(--border)', cursor: 'pointer' }}>
+          <button key={c.id} onClick={() => setViewingCohortId(c.id)} style={{ flexShrink: 0, padding: '5px 13px', fontSize: 11, fontWeight: 700, borderRadius: 20, border: '1px solid', background: myCohortId === c.id ? 'var(--black)' : 'none', color: myCohortId === c.id ? 'white' : 'var(--ink3)', borderColor: myCohortId === c.id ? 'var(--black)' : 'var(--border)', cursor: 'pointer' }}>
             {c.name} {c.status === 'ended' ? '🔒' : ''}
           </button>
         ))}
@@ -888,8 +740,7 @@ const [obIntro, setObIntro] = useState('')
   const renderSettings = () => (
     <>
       <div style={{ padding: '18px 16px 0' }}>
-        <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 16, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, cursor: 'pointer' }}
-          onClick={() => { setSelectedProfile(profile); setEditingProfile(false) }}>
+        <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 16, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, cursor: 'pointer' }} onClick={() => { setSelectedProfile(profile); setEditingProfile(false) }}>
           <div className="mc-av" style={{ background: profile?.color || '#333', width: 52, height: 52, borderRadius: 16, fontSize: 20 }}>{profile?.nickname?.[0] || '나'}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)' }}>{profile?.nickname || '닉네임'}</div>
@@ -901,29 +752,18 @@ const [obIntro, setObIntro] = useState('')
       <div className="settings-section">
         <div className="settings-title">서비스</div>
         <div className="settings-card">
-          <div className="settings-row" onClick={() => setShowPolicy(true)}>
-            <div><div className="settings-row-label">환불 정책 및 이용약관</div></div>
-            <span style={{ fontSize: 12, color: 'var(--ink3)' }}>→</span>
-          </div>
-          <div className="settings-row">
-            <div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">contact@oorajoo.kr</div></div>
-          </div>
+          <div className="settings-row" onClick={() => setShowPolicy(true)}><div><div className="settings-row-label">환불 정책 및 이용약관</div></div><span style={{ fontSize: 12, color: 'var(--ink3)' }}>→</span></div>
+          <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">contact@oorajoo.kr</div></div></div>
         </div>
       </div>
       <div className="settings-section">
         <div className="settings-title">계정</div>
         <div className="settings-card">
-          <div className="settings-row" onClick={() => supabase.auth.signOut()}>
-            <div><div className="settings-row-label">로그아웃</div></div>
-          </div>
-          <div className="settings-row" onClick={() => setShowDeleteConfirm(true)}>
-            <div><div className="settings-row-label" style={{ color: '#DC2626' }}>탈퇴하기</div><div className="settings-row-sub">모든 기록이 삭제돼요</div></div>
-          </div>
+          <div className="settings-row" onClick={() => supabase.auth.signOut()}><div><div className="settings-row-label">로그아웃</div></div></div>
+          <div className="settings-row" onClick={() => setShowDeleteConfirm(true)}><div><div className="settings-row-label" style={{ color: '#DC2626' }}>탈퇴하기</div><div className="settings-row-sub">모든 기록이 삭제돼요</div></div></div>
         </div>
       </div>
-      <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 11, color: 'var(--ink3)' }}>
-        우라주 챌린지 v1.0 · © 2025 OorajoO
-      </div>
+      <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 11, color: 'var(--ink3)' }}>우라주 챌린지 v1.0 · © 2025 OorajoO</div>
     </>
   )
 
@@ -935,12 +775,9 @@ const [obIntro, setObIntro] = useState('')
         <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 14 }}>관리자 패널</div>
         <div className="admin-tabs">
           <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
-          <button className={`admin-tab${adminTab === 'pending' ? ' on' : ''}`} onClick={() => setAdminTab('pending')}>
-            승인{pendingMembers.length > 0 && ` (${pendingMembers.length})`}
-          </button>
+          <button className={`admin-tab${adminTab === 'pending' ? ' on' : ''}`} onClick={() => setAdminTab('pending')}>승인{pendingMembers.length > 0 && ` (${pendingMembers.length})`}</button>
           <button className={`admin-tab${adminTab === 'cohorts' ? ' on' : ''}`} onClick={() => setAdminTab('cohorts')}>기수관리</button>
         </div>
-
         {adminTab === 'notice' && (<>
           <div className="admin-lbl">제목</div>
           <input className="admin-input" placeholder="공지 제목" value={adminForm.title} onChange={e => setAdminForm(p => ({ ...p, title: e.target.value }))} />
@@ -950,82 +787,54 @@ const [obIntro, setObIntro] = useState('')
           <input className="admin-input" placeholder="https://zoom.us/..." value={adminForm.link} onChange={e => setAdminForm(p => ({ ...p, link: e.target.value }))} />
           <div className="admin-toggle">
             <span className="admin-toggle-lbl">투표 추가하기</span>
-            <button className={`toggle-btn ${adminForm.hasPoll ? 'on' : 'off'}`} onClick={() => setAdminForm(p => ({ ...p, hasPoll: !p.hasPoll }))}>
-              <div className="toggle-dot" />
-            </button>
+            <button className={`toggle-btn ${adminForm.hasPoll ? 'on' : 'off'}`} onClick={() => setAdminForm(p => ({ ...p, hasPoll: !p.hasPoll }))}><div className="toggle-dot" /></button>
           </div>
           {adminForm.hasPoll && (<>
             <div className="admin-lbl">투표 질문</div>
             <input className="admin-input" placeholder="예) 줌 모임 참석 가능한가요?" value={adminForm.pollQ} onChange={e => setAdminForm(p => ({ ...p, pollQ: e.target.value }))} />
             <div className="admin-lbl">선택지</div>
-            {adminForm.pollOptions.map((opt, i) => (
-              <div key={i} className="poll-opt-row">
-                <input className="poll-opt-input" placeholder={`선택지 ${i + 1}`} value={opt}
-                  onChange={e => setAdminForm(p => ({ ...p, pollOptions: p.pollOptions.map((o, j) => j === i ? e.target.value : o) }))} />
-              </div>
-            ))}
-            <button style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px 13px', cursor: 'pointer' }}
-              onClick={() => setAdminForm(p => ({ ...p, pollOptions: [...p.pollOptions, ''] }))}>+ 선택지 추가</button>
+            {adminForm.pollOptions.map((opt, i) => <div key={i} className="poll-opt-row"><input className="poll-opt-input" placeholder={`선택지 ${i + 1}`} value={opt} onChange={e => setAdminForm(p => ({ ...p, pollOptions: p.pollOptions.map((o, j) => j === i ? e.target.value : o) }))} /></div>)}
+            <button style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px 13px', cursor: 'pointer' }} onClick={() => setAdminForm(p => ({ ...p, pollOptions: [...p.pollOptions, ''] }))}>+ 선택지 추가</button>
           </>)}
           <button className="admin-submit" disabled={!adminForm.title.trim() || !adminForm.body.trim()} onClick={submitNotice}>공지 올리기</button>
         </>)}
-
         {adminTab === 'pending' && (<>
           {pendingMembers.length === 0
             ? <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--ink3)', fontSize: 13 }}>대기 중인 신청자가 없어요</div>
             : pendingMembers.map((m: any) => (
               <div key={m.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
                 <div className="pending-row" style={{ borderBottom: 'none', paddingBottom: 8 }}>
-                  <div className="mc-av" style={{ width: 34, height: 34, borderRadius: 10, background: '#888', fontSize: 13 }}>{m.nickname?.[0]}</div>
+                  <div className="mc-av" style={{ width: 34, height: 34, borderRadius: 10, background: '#888', fontSize: 13 }}>{m.profiles?.nickname?.[0] || '?'}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.profiles?.nickname || m.nickname || '?'}</div>
                     <div style={{ fontSize: 10, color: 'var(--ink3)' }}>{formatTime(m.created_at)} 신청</div>
                   </div>
-                  <button className="reject-btn" onClick={() => rejectMember(m.id)}>거절</button>
+                  <button className="reject-btn" onClick={() => setPendingMembers(p => p.filter(x => x.id !== m.id))}>거절</button>
                 </div>
                 <div style={{ display: 'flex', gap: 5 }}>
                   {cohorts.filter(c => c.status !== 'ended').map(c => (
-                    <button key={c.id} onClick={() => approveMember(m.id, m.user_id, c.id)}
-                      style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 9, padding: '7px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                      {c.name}에 승인
-                    </button>
+                    <button key={c.id} onClick={() => approveMember(m.id, m.user_id, c.id)} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 9, padding: '7px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{c.name}에 승인</button>
                   ))}
                 </div>
               </div>
             ))
           }
         </>)}
-
         {adminTab === 'cohorts' && (<>
           {cohorts.map(c => (
             <div key={c.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 13px', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{c.name}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, background: c.status === 'active' ? 'var(--black)' : 'var(--surface)', color: c.status === 'active' ? 'white' : 'var(--ink3)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                  {c.status === 'active' ? '진행중' : c.status === 'ended' ? '종료' : '예정'}
-                </span>
+                <span style={{ fontSize: 10, fontWeight: 700, background: c.status === 'active' ? 'var(--black)' : 'var(--surface)', color: c.status === 'active' ? 'white' : 'var(--ink3)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)' }}>{c.status === 'active' ? '진행중' : c.status === 'ended' ? '종료' : '예정'}</span>
               </div>
               {editingCohort?.id === c.id ? (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 7 }}>
-                    <div>
-                      <div className="admin-lbl" style={{ marginBottom: 3 }}>시작일</div>
-                      <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }}
-                        value={editingCohort.start_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, start_date: e.target.value } : p)} />
-                    </div>
-                    <div>
-                      <div className="admin-lbl" style={{ marginBottom: 3 }}>종료일</div>
-                      <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }}
-                        value={editingCohort.end_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, end_date: e.target.value } : p)} />
-                    </div>
+                    <div><div className="admin-lbl" style={{ marginBottom: 3 }}>시작일</div><input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.start_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, start_date: e.target.value } : p)} /></div>
+                    <div><div className="admin-lbl" style={{ marginBottom: 3 }}>종료일</div><input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.end_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, end_date: e.target.value } : p)} /></div>
                   </div>
                   <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-                    {['upcoming', 'active', 'ended'].map(s => (
-                      <button key={s} onClick={() => setEditingCohort(p => p ? { ...p, status: s as any } : p)}
-                        style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', borderRadius: 8, background: editingCohort.status === s ? 'var(--black)' : 'none', color: editingCohort.status === s ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
-                        {s === 'upcoming' ? '예정' : s === 'active' ? '진행중' : '종료'}
-                      </button>
-                    ))}
+                    {['upcoming', 'active', 'ended'].map(s => <button key={s} onClick={() => setEditingCohort(p => p ? { ...p, status: s as any } : p)} style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', borderRadius: 8, background: editingCohort.status === s ? 'var(--black)' : 'none', color: editingCohort.status === s ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>{s === 'upcoming' ? '예정' : s === 'active' ? '진행중' : '종료'}</button>)}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={saveCohort} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 9, padding: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>저장</button>
@@ -1045,96 +854,17 @@ const [obIntro, setObIntro] = useState('')
     </div>
   )
 
-  // ─── 메인 리턴 ────────────────────────────────────────────────
-// 온보딩 (처음 가입 시)
-
-  const finishOnboard = async () => {
-    if (!obNickname.trim()) return
-    await supabase.from('profiles').update({
-      nickname: obNickname.trim(),
-      intro: obIntro.trim(),
-    }).eq('id', session.user.id)
-    await loadProfile()
-  }
-
-  if (profile && !profile.intro && !profile.is_admin) return (
-    <>
-      <style>{css}</style>
-      <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
-        <div style={{ background: '#0A0A0A', padding: '46px 28px 34px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: 9 }}>STEP 1 / 1</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: 'white', lineHeight: 1.35, letterSpacing: '-0.5px', whiteSpace: 'pre-line' }}>{'나는 이런\n사람이에요!'}</div>
-        </div>
-        <div style={{ flex: 1, padding: '26px 22px', background: '#F7F7F7' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임</div>
-          <input style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginBottom: 16, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
-            placeholder="그룹에서 불릴 이름" value={obNickname} onChange={e => setObNickname(e.target.value)} maxLength={10} autoFocus />
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>자기소개</div>
-          <textarea style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 14, color: '#1A1A1A', resize: 'none' as const, lineHeight: 1.7, marginBottom: 8, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
-            rows={3} placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..." value={obIntro} onChange={e => setObIntro(e.target.value)} />
-          <div style={{ fontSize: 11, color: '#999', marginBottom: 20, lineHeight: 1.6 }}>가입 신청 후 관리자 승인을 기다려주세요. 보통 24시간 이내에 처리돼요.</div>
-          <button style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: obNickname.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
-            onClick={finishOnboard} disabled={!obNickname.trim()}>
-            킵고잉! 시작하기 🌿
-          </button>
-        </div>
-      </div>
-    </>
-  )
-  if (profile && !profile.is_approved && !profile.is_admin) return (
-    <>
-      <style>{css}</style>
-      <div style={{ minHeight: '100vh', background: '#F7F7F7', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', textAlign: 'center', fontFamily: "'Noto Sans KR', system-ui" }}>
-        <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: '#0A0A0A', marginBottom: 8 }}>승인 대기 중이에요</div>
-        <div style={{ fontSize: 14, color: '#555', lineHeight: 1.75, marginBottom: 24 }}>관리자가 가입을 확인하고 있어요.<br />보통 24시간 이내에 처리돼요.</div>
-        <div style={{ fontSize: 11, fontWeight: 700, background: '#F0F0F0', color: '#999', border: '1px solid #E0E0E0', padding: '6px 16px', borderRadius: 20 }}>승인 후 자동으로 입장돼요</div>
-        <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 24, background: 'none', border: 'none', fontSize: 13, color: '#999', cursor: 'pointer' }}>로그아웃</button>
-      </div>
-    </>
-  )
-
-  if (showPolicy) return (
-    <>
-      <style>{css}</style>
-      <div className="policy-page">
-        <div className="policy-hdr">
-          <button onClick={() => setShowPolicy(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Icon name="close" size={20} color="white" /></button>
-          <span style={{ fontSize: 16, fontWeight: 900, color: 'white' }}>환불 정책 및 이용약관</span>
-        </div>
-        <div style={{ padding: '20px 18px' }}>
-          {[
-            { title: '환불 정책', text: '• 챌린지 시작 전(D-1까지): 전액 환불\n• 챌린지 시작 후 3일 이내: 50% 환불\n• 챌린지 시작 4일 이후: 환불 불가\n• 운영자 귀책 사유 발생 시: 전액 환불\n\n환불 문의: contact@oorajoo.kr' },
-            { title: '개인정보 처리방침', text: '수집 항목: 이메일, 닉네임, 작성 기록\n보유 기간: 회원 탈퇴 후 30일 이내 삭제\n제3자 제공: 없음' },
-            { title: '이용약관', text: '• 타인을 비방하는 내용은 관리자 판단 하에 삭제될 수 있어요.\n• 챌린지 기록은 해당 기수 멤버들과 공유돼요.\n• 서비스 운영 정책은 사전 공지 후 변경될 수 있어요.' },
-          ].map(({ title, text }) => (
-            <div key={title} style={{ marginBottom: 22 }}>
-              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 8 }}>{title}</div>
-              <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>{text}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  )
-
+  // ─── 메인 리턴 ───────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
       <div className="app">
         {!isOnline && <div className="offline">오프라인 상태예요 · 일부 기능이 제한될 수 있어요</div>}
-
         <div className="hdr">
-          <div>
-            <div className="hdr-wm">우라주 챌린지</div>
-            <div className="hdr-sub">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</div>
-          </div>
+          <div><div className="hdr-wm">우라주 챌린지</div><div className="hdr-sub">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</div></div>
           <div className="hdr-r">
             {isAdmin
-              ? <select value={myCohortId} onChange={e => setViewingCohortId(Number(e.target.value))}
-                  style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '5px 11px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
+              ? <select value={myCohortId} onChange={e => setViewingCohortId(Number(e.target.value))} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '5px 11px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
                   {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               : <div className="hdr-chip">{myCohort?.name || '?기'}</div>
@@ -1178,9 +908,7 @@ const [obIntro, setObIntro] = useState('')
                   <div className="m-intro">{selectedProfile.intro || '소개가 없어요'}</div>
                   {(selectedProfile.tags || []).length > 0 && <div className="m-tags">{selectedProfile.tags.map((t, i) => <span key={i} className="mc-tag">{t}</span>)}</div>}
                   <div className="m-btns">
-                    {selectedProfile.id === session.user.id && (
-                      <button className="m-edit" onClick={() => { setEditData({ intro: selectedProfile.intro || '', tags: (selectedProfile.tags || []).join(' '), threads_id: selectedProfile.threads_id || '', insta_id: selectedProfile.insta_id || '', naver_blog: selectedProfile.naver_blog || '' }); setEditingProfile(true) }}>프로필 수정</button>
-                    )}
+                    {selectedProfile.id === session.user.id && <button className="m-edit" onClick={() => { setEditData({ intro: selectedProfile.intro || '', tags: (selectedProfile.tags || []).join(' '), threads_id: selectedProfile.threads_id || '', insta_id: selectedProfile.insta_id || '', naver_blog: selectedProfile.naver_blog || '' }); setEditingProfile(true) }}>프로필 수정</button>}
                     <button className="m-close" onClick={() => { setSelectedProfile(null); setEditingProfile(false) }}>닫기</button>
                   </div>
                 </>
@@ -1211,13 +939,11 @@ const [obIntro, setObIntro] = useState('')
           <div className="share-modal-bg" onClick={e => { if (e.target === e.currentTarget) setShareModal(null) }}>
             <div className="share-modal">
               <div className="modal-handle" />
-              <div className="share-title">공유하기</div>
-              <div className="share-sub">아래 내용을 복사하거나 앱으로 공유해요</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 3 }}>공유하기</div>
+              <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 14 }}>아래 내용을 복사하거나 앱으로 공유해요</div>
               <div className="share-txt-box">{shareModal.text}</div>
-              <button className={`share-copy${copiedShare ? ' copied' : ''}`} onClick={doShare}>
-                {copiedShare ? '✓ 복사됐어요!' : '링크 복사하기'}
-              </button>
-              <button className="share-copy" style={{ background: 'var(--surface)', color: 'var(--black)', border: '1px solid var(--border)', marginBottom: 8 }} onClick={doShare}>📤 앱으로 공유하기</button>
+              <button className={`share-copy${copiedShare ? ' copied' : ''}`} onClick={doShare}>{copiedShare ? '✓ 복사됐어요!' : '링크 복사하기'}</button>
+              <button className="share-copy" style={{ background: 'var(--surface)', color: 'var(--black)', border: '1px solid var(--border)' }} onClick={doShare}>📤 앱으로 공유하기</button>
               <button className="share-cancel" onClick={() => setShareModal(null)}>닫기</button>
             </div>
           </div>
@@ -1226,11 +952,11 @@ const [obIntro, setObIntro] = useState('')
         {showDeleteConfirm && (
           <div className="confirm-bg" onClick={e => { if (e.target === e.currentTarget) setShowDeleteConfirm(false) }}>
             <div className="confirm-modal">
-              <div className="confirm-title">정말 탈퇴할까요?</div>
-              <div className="confirm-text">탈퇴하면 모든 기록이 삭제되고 복구할 수 없어요.</div>
-              <div className="confirm-btns">
-                <button className="confirm-ok" onClick={deleteAccount}>탈퇴하기</button>
-                <button className="confirm-cancel" onClick={() => setShowDeleteConfirm(false)}>취소</button>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', marginBottom: 8 }}>정말 탈퇴할까요?</div>
+              <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.65, marginBottom: 20 }}>탈퇴하면 모든 기록이 삭제되고 복구할 수 없어요.</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={{ flex: 1, background: '#DC2626', color: 'white', border: 'none', borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 900, cursor: 'pointer' }} onClick={() => supabase.auth.signOut()}>탈퇴하기</button>
+                <button style={{ flex: 1, background: 'var(--surface)', color: 'var(--ink2)', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={() => setShowDeleteConfirm(false)}>취소</button>
               </div>
             </div>
           </div>
