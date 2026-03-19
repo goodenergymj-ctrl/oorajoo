@@ -31,11 +31,11 @@ const CHEERS = [
   "아무것도 안 한 것 같아도, 살아낸 거 맞아요.",
   "완벽한 하루보다 솔직한 하루가 더 오래 기억돼요.",
   "많이 안 해도 돼요. 조금씩 꾸준히가 결국 이겨요.",
-  "오늘 뭔가 이루지 못해도, 내일 다시 하면 돼요. 진짜로.",
+  "오늘 뭔가 이루지 못해도, 내일 다시 하면 돼요.",
   "잘하려는 마음 자체가 이미 잘하고 있다는 증거예요.",
   "계획대로 안 됐어도, 그게 실패는 아니에요.",
   "그냥 버티는 것도 전략이에요. 꽤 좋은 전략이에요.",
-  "지금 느리다고 틀린 게 아니에요. 그냥 내 속도예요.",
+  "지금 느리다고 틀린 게 아니에요. 각자의 속도가 있어요.",
   "잘 버틴 날이 쌓이면 단단해져요. 오늘도 그 하루예요.",
 ]
 
@@ -1044,6 +1044,43 @@ export default function App({ session }: { session: any }) {
   )
 
   // ─── 메인 리턴 ────────────────────────────────────────────────
+// 온보딩 (처음 가입 시)
+  const [obNickname, setObNickname] = useState(profile?.nickname || '')
+  const [obIntro, setObIntro] = useState('')
+
+  const finishOnboard = async () => {
+    if (!obNickname.trim()) return
+    await supabase.from('profiles').update({
+      nickname: obNickname.trim(),
+      intro: obIntro.trim(),
+    }).eq('id', session.user.id)
+    await loadProfile()
+  }
+
+  if (profile && !profile.intro && !profile.cohort_id && !profile.is_admin) return (
+    <>
+      <style>{css}</style>
+      <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
+        <div style={{ background: '#0A0A0A', padding: '46px 28px 34px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: 9 }}>STEP 1 / 1</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: 'white', lineHeight: 1.35, letterSpacing: '-0.5px', whiteSpace: 'pre-line' }}>{'나는 이런\n사람이에요!'}</div>
+        </div>
+        <div style={{ flex: 1, padding: '26px 22px', background: '#F7F7F7' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임</div>
+          <input style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginBottom: 16, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            placeholder="그룹에서 불릴 이름" value={obNickname} onChange={e => setObNickname(e.target.value)} maxLength={10} autoFocus />
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>자기소개</div>
+          <textarea style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 14, color: '#1A1A1A', resize: 'none' as const, lineHeight: 1.7, marginBottom: 8, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            rows={3} placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..." value={obIntro} onChange={e => setObIntro(e.target.value)} />
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 20, lineHeight: 1.6 }}>가입 신청 후 관리자 승인을 기다려주세요. 보통 24시간 이내에 처리돼요.</div>
+          <button style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: obNickname.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
+            onClick={finishOnboard} disabled={!obNickname.trim()}>
+            킵고잉! 시작하기 🌿
+          </button>
+        </div>
+      </div>
+    </>
+  )
   if (showPolicy) return (
     <>
       <style>{css}</style>
