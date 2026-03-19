@@ -89,6 +89,8 @@ export default function App({ session }: { session: any }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showPolicy, setShowPolicy] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [obNickname, setObNickname] = useState('')
+const [obIntro, setObIntro] = useState('')
 
   // derived
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -1045,8 +1047,6 @@ export default function App({ session }: { session: any }) {
 
   // ─── 메인 리턴 ────────────────────────────────────────────────
 // 온보딩 (처음 가입 시)
-  const [obNickname, setObNickname] = useState(profile?.nickname || '')
-  const [obIntro, setObIntro] = useState('')
 
   const finishOnboard = async () => {
     if (!obNickname.trim()) return
