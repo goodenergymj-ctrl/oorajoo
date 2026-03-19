@@ -1097,13 +1097,6 @@ const [obIntro, setObIntro] = useState('')
   )
 ```
 
----
-
-최종적으로 이 순서가 되면 돼요:
-```
-if (profile && !profile.intro ...) ← 온보딩
-if (profile && !profile.is_approved ...) ← 승인대기  ← 새로 추가
-if (showPolicy) return ( ← 기존 코드
   if (showPolicy) return (
     <>
       <style>{css}</style>
