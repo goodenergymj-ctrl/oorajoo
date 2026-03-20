@@ -73,6 +73,19 @@ export default function App({ session }: { session: any }) {
 
   // 기수 선택
   const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null)
+   const [cohortMemberCounts, setCohortMemberCounts] = useState<Record<number, number>>({})
+
+  useEffect(() => {
+    const loadCounts = async () => {
+      const { data } = await supabase.from('profiles').select('cohort_id').not('cohort_id', 'is', null)
+      if (data) {
+        const counts: Record<number, number> = {}
+        data.forEach(p => { if (p.cohort_id) counts[p.cohort_id] = (counts[p.cohort_id] || 0) + 1 })
+        setCohortMemberCounts(counts)
+      }
+    }
+    loadCounts()
+  }, [])
   const [applyingCohort, setApplyingCohort] = useState(false)
 
   // 기록
@@ -602,6 +615,10 @@ export default function App({ session }: { session: any }) {
                 {c.start_date || '날짜 미정'} ~ {c.end_date || '날짜 미정'}
               </div>
               {c.price > 0 && <div className="cc-sub" style={{ marginTop: 4 }}>참가비 {c.price.toLocaleString()}원</div>}
+              <div className="cc-sub" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>👥 {cohortMemberCounts[c.id] || 0}명 참여 / {c.max_slots}명 모집</span>
+                {(cohortMemberCounts[c.id] || 0) >= c.max_slots && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626' }}>마감</span>}
+              </div>
             </div>
           ))}
 
