@@ -93,6 +93,7 @@ export default function App({ session }: { session: any }) {
   const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({})
   const [commentInput, setCommentInput] = useState<Record<number, string>>({})
   const [reactions, setReactions] = useState<Record<string, boolean>>({})
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({})
   const [shareModal, setShareModal] = useState<{ text: string; url: string } | null>(null)
   const [copiedShare, setCopiedShare] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
@@ -159,6 +160,20 @@ export default function App({ session }: { session: any }) {
     if (data) setNotice(data)
   }
 
+  const loadReactions = async () => {
+    const { data } = await supabase.from('reactions').select('*')
+    if (data) {
+      const counts: Record<string, number> = {}
+      const myR: Record<string, boolean> = {}
+      data.forEach((r: any) => {
+        const k = `${r.target_type}-${r.target_id}-${r.emoji}`
+        counts[k] = (counts[k] || 0) + 1
+        if (r.user_id === session.user.id) myR[k] = true
+      })
+      setReactionCounts(counts)
+      setReactions(myR)
+    }
+  }
   const loadPending = async () => {
     const { data } = await supabase
       .from('pending_members')
@@ -192,6 +207,7 @@ export default function App({ session }: { session: any }) {
       loadFeed()
       loadLounge()
       loadNotice()
+      loadReactions()
     }
   }, [myCohortId])
 
@@ -302,6 +318,7 @@ export default function App({ session }: { session: any }) {
       await supabase.from('reactions').insert({ user_id: session.user.id, target_type: type, target_id: targetId, emoji })
     }
     setReactions(p => ({ ...p, [key]: !on }))
+    loadReactions()
   }
 
   const submitComment = async (feedId: number) => {
@@ -720,7 +737,7 @@ export default function App({ session }: { session: any }) {
               const rk = `feed-${item.id}-${key}`, on = reactions[rk]
               return (
                 <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('feed', item.id, key)}>
-                  <span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{((item.reactions as any[]) || []).filter((r: any) => r.emoji === key).length}</span>
+                  <span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{reactionCounts[`feed-${item.id}-${key}`] || 0}</span>
                 </button>
               )
             })}
@@ -909,7 +926,7 @@ export default function App({ session }: { session: any }) {
               <div className="react-bar">
                 {REACT_CONFIG.map(({ key, emoji }) => {
                   const rk = `lounge-${post.id}-${key}`, on = reactions[rk]
-                  return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}><span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{((post.reactions as any[]) || []).filter((r: any) => r.emoji === key).length}</span></button>
+                  return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}><span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{reactionCounts[`lounge-${post.id}-${key}`] || 0}</span></button>
                 })}
                 <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(post, 'lounge')}><Icon name="share" size={13} color="var(--ink3)" /><span>공유</span></button>
               </div>
