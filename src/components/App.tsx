@@ -873,32 +873,39 @@ export default function App({ session }: { session: any }) {
       {showPostInput && (
         <div className="post-box">
           <textarea className="post-ta" rows={3} placeholder="오늘 하루 어땠어요? ✍️" value={newPost} onChange={e => setNewPost(e.target.value)} autoFocus />
-          <div className="tag-row">
-            {TAGS.map(t => (
-              <button key={t}
-                className={`tag-chip ${postTags.includes(t) ? 'sel' : 'unsel'}`}
-                onClick={() => setPostTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])}>
-                {t}
-              </button>
-            ))}
-            {showCustomTag ? (
-              <div style={{ display: 'flex', gap: 4 }}>
-                <input
-                  style={{ background: 'var(--bg)', border: '1.5px solid var(--black)', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: 'var(--ink)', width: 90, outline: 'none' }}
-                  placeholder="#태그" value={customTagInput} onChange={e => setCustomTagInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const t = customTagInput.trim()
-                      if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
-                      setCustomTagInput(''); setShowCustomTag(false)
-                    }
-                  }} autoFocus />
-                <button onClick={() => {
-                  const t = customTagInput.trim()
-                  if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
-                  setCustomTagInput(''); setShowCustomTag(false)
-                }} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>추가</button>
-              </div>
+<div className="tag-row">
+  {TAGS.map(t => (
+    <button key={t}
+      className={`tag-chip ${postTags.includes(t) ? 'sel' : 'unsel'}`}
+      onClick={() => setPostTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])}>
+      {t}
+    </button>
+  ))}
+  {postTags.filter(t => !TAGS.includes(t)).map(t => (
+    <button key={t} className="tag-chip sel" onClick={() => setPostTags(p => p.filter(x => x !== t))}>{t} ×</button>
+  ))}
+  {showCustomTag ? (
+    <div style={{ display: 'flex', gap: 4 }}>
+      <input
+        style={{ background: 'var(--bg)', border: '1.5px solid var(--black)', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: 'var(--ink)', width: 90, outline: 'none' }}
+        placeholder="#태그" value={customTagInput} onChange={e => setCustomTagInput(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            const t = customTagInput.trim()
+            if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
+            setCustomTagInput(''); setShowCustomTag(false)
+          }
+        }} autoFocus />
+      <button onClick={() => {
+        const t = customTagInput.trim()
+        if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
+        setCustomTagInput(''); setShowCustomTag(false)
+      }} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>추가</button>
+    </div>
+  ) : (
+    <button className="tag-chip unsel" style={{ borderStyle: 'dashed' }} onClick={() => setShowCustomTag(true)}>+ 직접입력</button>
+  )}
+</div>
             ) : (
 {postTags.filter(t => !TAGS.includes(t)).map(t => (
   <button key={t} className="tag-chip sel" onClick={() => setPostTags(p => p.filter(x => x !== t))}>{t} ×</button>
