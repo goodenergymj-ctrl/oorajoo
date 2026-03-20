@@ -334,6 +334,7 @@ export default function App({ session }: { session: any }) {
     }
     setReactions(p => ({ ...p, [key]: !on }))
     loadReactions()
+    loadReactions()
   }
 
   const submitComment = async (feedId: number) => {
