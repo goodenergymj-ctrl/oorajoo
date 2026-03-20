@@ -38,7 +38,7 @@ export default function Auth() {
   return (
     <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', fontFamily: 'system-ui' }}>
       <div style={{ fontSize: 28, fontWeight: 900, color: 'white', letterSpacing: '-1px', marginBottom: 6 }}>OorajoO</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 44 }}>우상향 라이프 주인이 되는 날까지</div>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 44 }}>함께 우라주 챌린지 킵고잉!🌿</div>
       <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 360 }}>
         <div style={{ fontSize: 18, fontWeight: 900, color: '#0A0A0A', marginBottom: 20 }}>
           {mode === 'login' ? '로그인' : '가입 신청'}
