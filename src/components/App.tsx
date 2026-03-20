@@ -94,7 +94,6 @@ export default function App({ session }: { session: any }) {
   const [commentInput, setCommentInput] = useState<Record<number, string>>({})
   const [reactions, setReactions] = useState<Record<string, boolean>>({})
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({})
-  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({})
   const [shareModal, setShareModal] = useState<{ text: string; url: string } | null>(null)
   const [copiedShare, setCopiedShare] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
