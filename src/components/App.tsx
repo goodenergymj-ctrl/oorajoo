@@ -209,24 +209,44 @@ export default function App({ session }: { session: any }) {
   const saveProfile = async () => {
     if (!obNickname.trim()) return
     setObSaving(true)
-    const res = await fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'save_profile',
-        userId: session.user.id,
+    // 기존 프로필 있는지 확인
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', session.user.id)
+      .single()
+    
+    let error
+    if (existing) {
+      const result = await supabase.from('profiles').update({
         nickname: obNickname.trim(),
         intro: obIntro.trim() || '안녕하세요!',
-        threads_id: obThreads.trim(),
-        insta_id: obInsta.trim(),
-        naver_blog: obNaver.trim(),
-      })
-    })
-    const data = await res.json()
-    if (data.success) {
-      await loadProfile()
+        threads_id: obThreads.trim() || null,
+        insta_id: obInsta.trim() || null,
+        naver_blog: obNaver.trim() || null,
+      }).eq('id', session.user.id)
+      error = result.error
     } else {
-      alert('저장 실패: ' + data.error)
+      const result = await supabase.from('profiles').insert({
+        id: session.user.id,
+        nickname: obNickname.trim(),
+        intro: obIntro.trim() || '안녕하세요!',
+        threads_id: obThreads.trim() || null,
+        insta_id: obInsta.trim() || null,
+        naver_blog: obNaver.trim() || null,
+        is_admin: false,
+        is_approved: false,
+        color: '#1A1A1A',
+        tags: [],
+        streak: 0,
+      })
+      error = result.error
+    }
+    
+    if (error) {
+      alert('저장 실패: ' + error.message)
+    } else {
+      await loadProfile()
     }
     setObSaving(false)
   }
@@ -234,19 +254,27 @@ export default function App({ session }: { session: any }) {
   const applyCohort = async () => {
     if (!selectedCohortId) return
     setApplyingCohort(true)
-    const res = await fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'apply_cohort',
-        userId: session.user.id,
+    
+    // pending_members에 추가
+    const { data: existing } = await supabase
+      .from('pending_members')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .single()
+    
+    if (existing) {
+      await supabase.from('pending_members').update({ cohort_id: selectedCohortId }).eq('user_id', session.user.id)
+    } else {
+      await supabase.from('pending_members').insert({
+        user_id: session.user.id,
+        nickname: profile?.nickname || '',
         cohort_id: selectedCohortId,
       })
-    })
-    const data = await res.json()
-    if (data.success) {
-      await loadProfile()
     }
+    
+    // 프로필에 cohort_id 임시 저장 (승인 전 상태 표시용)
+    await supabase.from('profiles').update({ cohort_id: selectedCohortId }).eq('id', session.user.id)
+    await loadProfile()
     setApplyingCohort(false)
   }
 
