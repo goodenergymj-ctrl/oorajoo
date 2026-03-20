@@ -83,7 +83,7 @@ export default function App({ session }: { session: any }) {
   // 라운지
   const [newPost, setNewPost] = useState('')
   const [postTags, setPostTags] = useState<string[]>([])
-  const [customTag, setCustomTag] = useState('')
+  const [customTagInput, setCustomTagInput] = useState('')
   const [showCustomTag, setShowCustomTag] = useState(false)
   const [postImage, setPostImage] = useState<File | null>(null)
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null)
