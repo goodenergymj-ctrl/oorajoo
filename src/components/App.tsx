@@ -59,6 +59,9 @@ export default function App({ session }: { session: any }) {
   // 온보딩
   const [obNickname, setObNickname] = useState('')
   const [obIntro, setObIntro] = useState('')
+  const [obThreads, setObThreads] = useState('')
+  const [obInsta, setObInsta] = useState('')
+  const [obNaver, setObNaver] = useState('')
 
   // 기록
   const [myRecord, setMyRecord] = useState({ gratitude: '', goal: '', question_answer: '', is_private: false })
