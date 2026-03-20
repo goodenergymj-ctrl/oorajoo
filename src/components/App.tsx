@@ -469,11 +469,24 @@ export default function App({ session }: { session: any }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>자기소개</div>
           <textarea style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 14, color: '#1A1A1A', resize: 'none' as const, lineHeight: 1.7, marginBottom: 8, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
             rows={3} placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..." value={obIntro} onChange={e => setObIntro(e.target.value)} />
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7, marginTop: 8 }}>소셜 아이디 <span style={{ fontSize: 10, color: '#bbb', fontWeight: 400 }}>(선택 · 나중에 설정에서도 추가할 수 있어요)</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>T</div>
+            <input style={{ flex: 1, background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 11, padding: '10px 13px', fontSize: 13, color: '#1A1A1A', outline: 'none', fontFamily: 'inherit' }} placeholder="스레드 아이디 (@제외)" value={obThreads} onChange={e => setObThreads(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#f09433,#dc2743,#bc1888)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>I</div>
+            <input style={{ flex: 1, background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 11, padding: '10px 13px', fontSize: 13, color: '#1A1A1A', outline: 'none', fontFamily: 'inherit' }} placeholder="인스타그램 아이디 (@제외)" value={obInsta} onChange={e => setObInsta(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>N</div>
+            <input style={{ flex: 1, background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 11, padding: '10px 13px', fontSize: 13, color: '#1A1A1A', outline: 'none', fontFamily: 'inherit' }} placeholder="네이버 블로그 ID" value={obNaver} onChange={e => setObNaver(e.target.value)} />
+          </div>
           <div style={{ fontSize: 11, color: '#999', marginBottom: 20, lineHeight: 1.6 }}>가입 신청 후 관리자 승인을 기다려주세요. 보통 24시간 이내에 처리돼요.</div>
           <button style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' }}
             onClick={async () => {
               if (!obNickname.trim()) return
-              await supabase.from('profiles').insert({ id: session.user.id, nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!', is_admin: false, is_approved: false, color: '#1A1A1A', tags: [], streak: 0 })
+              await supabase.from('profiles').insert({ id: session.user.id, nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!', threads_id: obThreads.trim() || null, insta_id: obInsta.trim() || null, naver_blog: obNaver.trim() || null, is_admin: false, is_approved: false, color: '#1A1A1A', tags: [], streak: 0 })
               await loadProfile()
             }} disabled={!obNickname.trim()}>
             킵고잉! 시작하기 🌿
