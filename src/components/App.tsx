@@ -133,7 +133,7 @@ export default function App({ session }: { session: any }) {
     if (!myCohortId) return
     const { data } = await supabase
       .from('feed')
-      .select('*, profiles(*), reactions(*), comments(*, profiles(nickname))')
+      .select('*, profiles(*), comments(*, profiles(nickname))')
       .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
     if (data) setFeed(data as FeedItem[])
@@ -143,7 +143,7 @@ export default function App({ session }: { session: any }) {
     if (!myCohortId) return
     const { data } = await supabase
       .from('lounge')
-      .select('*, profiles(*), reactions(*)')
+      .select('*, profiles(*)')
       .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
     if (data) setLounge(data as LoungePost[])
