@@ -73,19 +73,6 @@ export default function App({ session }: { session: any }) {
 
   // 기수 선택
   const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null)
-   const [cohortMemberCounts, setCohortMemberCounts] = useState<Record<number, number>>({})
-
-  useEffect(() => {
-    const loadCounts = async () => {
-      const { data } = await supabase.from('profiles').select('cohort_id').not('cohort_id', 'is', null)
-      if (data) {
-        const counts: Record<number, number> = {}
-        data.forEach(p => { if (p.cohort_id) counts[p.cohort_id] = (counts[p.cohort_id] || 0) + 1 })
-        setCohortMemberCounts(counts)
-      }
-    }
-    loadCounts()
-  }, [])
   const [applyingCohort, setApplyingCohort] = useState(false)
 
   // 기록
@@ -95,7 +82,9 @@ export default function App({ session }: { session: any }) {
 
   // 라운지
   const [newPost, setNewPost] = useState('')
-  const [postTag, setPostTag] = useState('')
+  const [postTags, setPostTags] = useState<string[]>([])
+  const [customTag, setCustomTag] = useState('')
+  const [showCustomTag, setShowCustomTag] = useState(false)
   const [postImage, setPostImage] = useState<File | null>(null)
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null)
   const [showPostInput, setShowPostInput] = useState(false)
@@ -144,7 +133,7 @@ export default function App({ session }: { session: any }) {
     if (!myCohortId) return
     const { data } = await supabase
       .from('feed')
-      .select('*, profiles(*)')
+      .select('*, profiles(*), reactions(*), comments(*, profiles(nickname))')
       .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
     if (data) setFeed(data as FeedItem[])
@@ -154,7 +143,7 @@ export default function App({ session }: { session: any }) {
     if (!myCohortId) return
     const { data } = await supabase
       .from('lounge')
-      .select('*, profiles(*)')
+      .select('*, profiles(*), reactions(*)')
       .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
     if (data) setLounge(data as LoungePost[])
@@ -323,6 +312,11 @@ export default function App({ session }: { session: any }) {
     loadFeed()
   }
 
+  const getReactionCount = (item: any, emoji: string, type: 'feed' | 'lounge') => {
+    const reactions = item.reactions || []
+    return reactions.filter((r: any) => r.emoji === emoji && r.target_type === type).length
+  }
+
   const submitPost = async () => {
     if (!newPost.trim()) return
     let imageUrl = null
@@ -333,9 +327,9 @@ export default function App({ session }: { session: any }) {
     }
     await supabase.from('lounge').insert({
       user_id: session.user.id, cohort_id: myCohortId,
-      content: newPost, tag: postTag || null, image_url: imageUrl,
+      content: newPost, tag: postTags.join(' ') || null, image_url: null,
     })
-    setNewPost(''); setPostTag(''); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
+    setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
     loadLounge()
   }
 
@@ -615,10 +609,6 @@ export default function App({ session }: { session: any }) {
                 {c.start_date || '날짜 미정'} ~ {c.end_date || '날짜 미정'}
               </div>
               {c.price > 0 && <div className="cc-sub" style={{ marginTop: 4 }}>참가비 {c.price.toLocaleString()}원</div>}
-              <div className="cc-sub" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>👥 {cohortMemberCounts[c.id] || 0}명 참여 / {c.max_slots}명 모집</span>
-                {(cohortMemberCounts[c.id] || 0) >= c.max_slots && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626' }}>마감</span>}
-              </div>
             </div>
           ))}
 
@@ -730,7 +720,7 @@ export default function App({ session }: { session: any }) {
               const rk = `feed-${item.id}-${key}`, on = reactions[rk]
               return (
                 <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('feed', item.id, key)}>
-                  <span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">0</span>
+                  <span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{((item.reactions as any[]) || []).filter((r: any) => r.emoji === key).length}</span>
                 </button>
               )
             })}
@@ -746,7 +736,7 @@ export default function App({ session }: { session: any }) {
           <div className="cmt-area">
             {(item.comments || []).map((c: any, i: number) => (
               <div key={i} className="cmt-item">
-                <span className="cmt-author">{c.profiles?.nickname || '?'}</span>
+                <span className="cmt-author">{c.profiles?.nickname || '알 수 없음'}</span>
                 <span className="cmt-text">{c.content}</span>
               </div>
             ))}
@@ -865,27 +855,39 @@ export default function App({ session }: { session: any }) {
       {showPostInput && (
         <div className="post-box">
           <textarea className="post-ta" rows={3} placeholder="오늘 하루 어땠어요? ✍️" value={newPost} onChange={e => setNewPost(e.target.value)} autoFocus />
-          {postImagePreview && (
-            <div style={{ position: 'relative', marginBottom: 10 }}>
-              <img src={postImagePreview} style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 10 }} alt="" />
-              <button onClick={() => { setPostImage(null); setPostImagePreview(null) }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Icon name="close" size={11} color="white" />
-              </button>
-            </div>
-          )}
           <div className="tag-row">
-            {TAGS.map(t => <button key={t} className={`tag-chip ${postTag === t ? 'sel' : 'unsel'}`} onClick={() => setPostTag(p => p === t ? '' : t)}>{t}</button>)}
+            {TAGS.map(t => (
+              <button key={t}
+                className={`tag-chip ${postTags.includes(t) ? 'sel' : 'unsel'}`}
+                onClick={() => setPostTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t])}>
+                {t}
+              </button>
+            ))}
+            {showCustomTag ? (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input
+                  style={{ background: 'var(--bg)', border: '1.5px solid var(--black)', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: 'var(--ink)', width: 90, outline: 'none' }}
+                  placeholder="#태그" value={customTagInput} onChange={e => setCustomTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const t = customTagInput.trim()
+                      if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
+                      setCustomTagInput(''); setShowCustomTag(false)
+                    }
+                  }} autoFocus />
+                <button onClick={() => {
+                  const t = customTagInput.trim()
+                  if (t) { const tag = t.startsWith('#') ? t : '#' + t; setPostTags(p => [...p, tag]) }
+                  setCustomTagInput(''); setShowCustomTag(false)
+                }} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>추가</button>
+              </div>
+            ) : (
+              <button className="tag-chip unsel" style={{ borderStyle: 'dashed' }} onClick={() => setShowCustomTag(true)}>+ 직접입력</button>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 10, padding: '7px 13px', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer', fontWeight: 600 }}>
-              <Icon name="plus" size={13} color="var(--ink3)" />사진
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
-                const f = e.target.files?.[0]; if (!f) return; setPostImage(f)
-                const r = new FileReader(); r.onload = ev => setPostImagePreview(ev.target?.result as string); r.readAsDataURL(f)
-              }} />
-            </label>
             <button style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={submitPost}>공유하기</button>
-            <button style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer' }} onClick={() => { setShowPostInput(false); setNewPost(''); setPostTag(''); setPostImage(null); setPostImagePreview(null) }}>취소</button>
+            <button style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer' }} onClick={() => { setShowPostInput(false); setNewPost(''); setPostTags([]); setShowCustomTag(false) }}>취소</button>
           </div>
         </div>
       )}
@@ -907,7 +909,7 @@ export default function App({ session }: { session: any }) {
               <div className="react-bar">
                 {REACT_CONFIG.map(({ key, emoji }) => {
                   const rk = `lounge-${post.id}-${key}`, on = reactions[rk]
-                  return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}><span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">0</span></button>
+                  return <button key={key} className={`r-btn${on ? ' on' : ''}`} onClick={() => handleReact('lounge', post.id, key)}><span style={{ fontSize: 14 }}>{emoji}</span><span className="r-cnt">{((post.reactions as any[]) || []).filter((r: any) => r.emoji === key).length}</span></button>
                 })}
                 <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(post, 'lounge')}><Icon name="share" size={13} color="var(--ink3)" /><span>공유</span></button>
               </div>
