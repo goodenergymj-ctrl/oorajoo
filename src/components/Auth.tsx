@@ -37,7 +37,24 @@ export default function Auth() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', fontFamily: 'system-ui' }}>
-      <div style={{ fontSize: 28, fontWeight: 900, color: 'white', letterSpacing: '-1px', marginBottom: 6 }}>OorajoO</div>
+      <div style={{ marginBottom: 6 }}>
+  <svg viewBox="0 0 280 72" width="220" style={{ display: 'block', margin: '0 auto', overflow: 'visible' }}>
+    <defs>
+      <filter id="glow2">
+        <feGaussianBlur stdDeviation="1.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <line x1="10" y1="66" x2="200" y2="8" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="3,5"/>
+    <text x="10" y="66" fontSize="22" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.25)">O</text>
+    <text x="30" y="59" fontSize="25" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.4)">o</text>
+    <text x="50" y="51" fontSize="28" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.55)">r</text>
+    <text x="66" y="43" fontSize="31" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.7)">a</text>
+    <text x="88" y="34" fontSize="34" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.82)">j</text>
+    <text x="101" y="25" fontSize="37" fontWeight="900" fontFamily="system-ui" fill="rgba(255,255,255,0.92)">o</text>
+    <text x="128" y="14" fontSize="42" fontWeight="900" fontFamily="system-ui" fill="white" filter="url(#glow2)">O</text>
+    <text x="168" y="52" fontSize="11" fontWeight="700" fontFamily="system-ui" fill="rgba(255,255,255,0.4)" letterSpacing="2">CHALLENGE</text>
+  </svg>
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 44 }}>우상향 라이프 주인이 되는 날까지<br />함께 우라주 챌린지 킵고잉! 🌿</div>
       <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 360 }}>
         <div style={{ fontSize: 18, fontWeight: 900, color: '#0A0A0A', marginBottom: 20 }}>
