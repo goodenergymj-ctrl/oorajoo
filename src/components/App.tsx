@@ -900,7 +900,10 @@ export default function App({ session }: { session: any }) {
                 }} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>추가</button>
               </div>
             ) : (
-              <button className="tag-chip unsel" style={{ borderStyle: 'dashed' }} onClick={() => setShowCustomTag(true)}>+ 직접입력</button>
+{postTags.filter(t => !TAGS.includes(t)).map(t => (
+  <button key={t} className="tag-chip sel" onClick={() => setPostTags(p => p.filter(x => x !== t))}>{t} ×</button>
+))}
+          <button className="tag-chip unsel" style={{ borderStyle: 'dashed' }} onClick={() => setShowCustomTag(true)}>+ 직접입력</button>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
