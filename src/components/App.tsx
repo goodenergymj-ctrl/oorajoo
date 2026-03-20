@@ -486,7 +486,18 @@ export default function App({ session }: { session: any }) {
           <button style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' }}
             onClick={async () => {
               if (!obNickname.trim()) return
-              await supabase.from('profiles').insert({ id: session.user.id, nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!', threads_id: obThreads.trim() || null, insta_id: obInsta.trim() || null, naver_blog: obNaver.trim() || null, is_admin: false, is_approved: false, color: '#1A1A1A', tags: [], streak: 0 })
+              await fetch('/api/profile', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    id: session.user.id,
+    nickname: obNickname.trim(),
+    intro: obIntro.trim(),
+    threads_id: obThreads.trim(),
+    insta_id: obInsta.trim(),
+    naver_blog: obNaver.trim(),
+  })
+}) id: session.user.id, nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!', threads_id: obThreads.trim() || null, insta_id: obInsta.trim() || null, naver_blog: obNaver.trim() || null, is_admin: false, is_approved: false, color: '#1A1A1A', tags: [], streak: 0 })
               await loadProfile()
             }} disabled={!obNickname.trim()}>
             킵고잉! 시작하기 🌿
