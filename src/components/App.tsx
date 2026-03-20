@@ -450,6 +450,35 @@ export default function App({ session }: { session: any }) {
     </div>
   )
 
+  // 1-1. 프로필 없으면 온보딩
+  if (profileLoaded && !profile) return (
+    <>
+      <style>{css}</style>
+      <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
+        <div style={{ background: '#0A0A0A', padding: '46px 28px 34px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: 9 }}>STEP 1 / 1</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: 'white', lineHeight: 1.35, whiteSpace: 'pre-line' }}>{'나는 이런\n사람이에요!'}</div>
+        </div>
+        <div style={{ flex: 1, padding: '26px 22px', background: '#F7F7F7' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임</div>
+          <input style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginBottom: 16, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            placeholder="그룹에서 불릴 이름" value={obNickname} onChange={e => setObNickname(e.target.value)} maxLength={10} autoFocus />
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>자기소개</div>
+          <textarea style={{ width: '100%', background: 'white', border: '1.5px solid #E0E0E0', borderRadius: 13, padding: '14px 17px', fontSize: 14, color: '#1A1A1A', resize: 'none' as const, lineHeight: 1.7, marginBottom: 8, boxSizing: 'border-box' as const, outline: 'none', fontFamily: 'inherit' }}
+            rows={3} placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..." value={obIntro} onChange={e => setObIntro(e.target.value)} />
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 20, lineHeight: 1.6 }}>가입 신청 후 관리자 승인을 기다려주세요. 보통 24시간 이내에 처리돼요.</div>
+          <button style={{ width: '100%', background: obNickname.trim() ? '#0A0A0A' : '#E0E0E0', color: obNickname.trim() ? 'white' : '#999', border: 'none', borderRadius: 14, padding: 15, fontSize: 14, fontWeight: 900, cursor: 'pointer', fontFamily: 'inherit' }}
+            onClick={async () => {
+              if (!obNickname.trim()) return
+              await supabase.from('profiles').insert({ id: session.user.id, nickname: obNickname.trim(), intro: obIntro.trim() || '안녕하세요!', is_admin: false, is_approved: false, color: '#1A1A1A', tags: [], streak: 0 })
+              await loadProfile()
+            }} disabled={!obNickname.trim()}>
+            킵고잉! 시작하기 🌿
+          </button>
+        </div>
+      </div>
+    </>
+  )
   // 2. 온보딩 (소개 없는 신규 유저, 관리자 제외)
   if (profile && !profile.intro && !profile.is_admin) return (
     <>
