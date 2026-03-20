@@ -174,20 +174,6 @@ export default function App({ session }: { session: any }) {
       setReactions(myR)
     }
   }
-  const loadReactions = async () => {
-    const { data } = await supabase.from('reactions').select('*')
-    if (data) {
-      const counts: Record<string, number> = {}
-      const myR: Record<string, boolean> = {}
-      data.forEach((r: any) => {
-        const k = `${r.target_type}-${r.target_id}-${r.emoji}`
-        counts[k] = (counts[k] || 0) + 1
-        if (r.user_id === session.user.id) myR[k] = true
-      })
-      setReactionCounts(counts)
-      setReactions(myR)
-    }
-  }
   const loadPending = async () => {
     const { data } = await supabase
       .from('pending_members')
