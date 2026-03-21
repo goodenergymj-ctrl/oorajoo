@@ -396,7 +396,7 @@ export default function App({ session }: { session: any }) {
     const tags = typeof editData.tags === 'string'
       ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
       : editData.tags
-    await supabase.from('profiles').update({ intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
+    await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags,, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
     loadProfile(); setEditingProfile(false); setSelectedProfile(null)
   }
 
@@ -1189,7 +1189,7 @@ export default function App({ session }: { session: any }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     {selectedProfile.id === session.user.id && (
                       <button style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer' }}
-                        onClick={() => { setEditData({ intro: selectedProfile.intro || '', tags: (selectedProfile.tags || []).join(' '), threads_id: selectedProfile.threads_id || '', insta_id: selectedProfile.insta_id || '', naver_blog: selectedProfile.naver_blog || '' }); setEditingProfile(true) }}>
+                        onClick={() => { setEditData({ nickname: selectedProfile.nickname || '', intro: selectedProfile.intro || '', tags: (selectedProfile.tags || []).join(' '), threads_id: selectedProfile.threads_id || '', insta_id: selectedProfile.insta_id || '', naver_blog: selectedProfile.naver_blog || '' }); setEditingProfile(true) }}>
                         프로필 수정
                       </button>
                     )}
@@ -1199,6 +1199,8 @@ export default function App({ session }: { session: any }) {
               ) : (
                 <>
                   <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 16 }}>프로필 수정</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임</div>
+                  <input style={{ width: '100%', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '10px 13px', fontSize: 13, color: 'var(--ink)', marginBottom: 11, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const }} value={editData.nickname || ''} onChange={e => setEditData((p: any) => ({ ...p, nickname: e.target.value }))} placeholder="닉네임" maxLength={10} />
                   {[['자기소개', 'intro'], ['태그 (#으로 시작, 띄어쓰기 구분)', 'tags'], ['스레드 아이디', 'threads_id'], ['인스타그램 아이디', 'insta_id'], ['네이버 블로그 ID', 'naver_blog']].map(([label, key]) => (
                     <div key={key}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>{label}</div>
