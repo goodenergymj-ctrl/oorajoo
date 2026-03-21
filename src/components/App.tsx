@@ -103,6 +103,9 @@ export default function App({ session }: { session: any }) {
   const [adminTab, setAdminTab] = useState('notice')
   const [adminForm, setAdminForm] = useState({ title: '', body: '', link: '', hasPoll: false, pollQ: '', pollOptions: ['', ''] })
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null)
+  const [editingPostId, setEditingPostId] = useState<number | null>(null)
+  const [editingPostText, setEditingPostText] = useState('')
+  const [editingPostType, setEditingPostType] = useState<'feed' | 'lounge' | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showPolicy, setShowPolicy] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
@@ -400,6 +403,26 @@ export default function App({ session }: { session: any }) {
     loadProfile(); setEditingProfile(false); setSelectedProfile(null)
   }
 
+    const deletePost = async (id: number, type: 'feed' | 'lounge') => {
+    if (!confirm('정말 삭제할까요?')) return
+    await supabase.from(type).delete().eq('id', id)
+    type === 'feed' ? loadFeed() : loadLounge()
+  }
+
+  const startEditPost = (id: number, text: string, type: 'feed' | 'lounge') => {
+    setEditingPostId(id)
+    setEditingPostText(text)
+    setEditingPostType(type)
+  }
+
+  const saveEditPost = async () => {
+    if (!editingPostId || !editingPostType) return
+    if (editingPostType === 'lounge') {
+      await supabase.from('lounge').update({ content: editingPostText }).eq('id', editingPostId)
+      loadLounge()
+    }
+    setEditingPostId(null); setEditingPostText(''); setEditingPostType(null)
+  }
   const formatTime = (ts: string) => {
     const d = new Date(ts), now = new Date(), diff = Math.floor((now.getTime() - d.getTime()) / 1000)
     if (diff < 60) return '방금 전'
@@ -924,9 +947,23 @@ export default function App({ session }: { session: any }) {
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
                 {isMe && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, marginLeft: 4 }}>나</span>}
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>{formatTime(post.created_at)}</span>
+                {isMe && <>
+                  <button onClick={() => startEditPost(post.id, post.content, 'lounge')} style={{ fontSize: 10, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>수정</button>
+                  <button onClick={() => deletePost(post.id, 'lounge')} style={{ fontSize: 10, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>삭제</button>
+                </>}
               </div>
               {post.tag && <div className="lc-tag">{post.tag}</div>}
-              <div className="lc-text">{post.content}</div>
+              {editingPostId === post.id ? (
+                <div>
+                  <textarea style={{ width: '100%', background: 'var(--bg)', border: '1.5px solid var(--black)', borderRadius: 10, padding: '10px 13px', fontSize: 13, color: 'var(--ink)', resize: 'none', lineHeight: 1.65, marginBottom: 8, outline: 'none', fontFamily: 'inherit' }} rows={3} value={editingPostText} onChange={e => setEditingPostText(e.target.value)} />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={saveEditPost} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '8px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>저장</button>
+                    <button onClick={() => { setEditingPostId(null); setEditingPostText('') }} style={{ flex: 1, background: 'var(--surface)', border: 'none', borderRadius: 10, padding: '8px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--ink2)' }}>취소</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="lc-text">{post.content}</div>
+              )}
               <div className="react-bar">
                 {REACT_CONFIG.map(({ key, emoji }) => {
                   const rk = `lounge-${post.id}-${key}`, on = reactions[rk]
