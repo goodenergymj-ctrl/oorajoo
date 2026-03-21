@@ -396,7 +396,7 @@ export default function App({ session }: { session: any }) {
     const tags = typeof editData.tags === 'string'
       ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
       : editData.tags
-    await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags,, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
+    await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
     loadProfile(); setEditingProfile(false); setSelectedProfile(null)
   }
 
