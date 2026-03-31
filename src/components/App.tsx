@@ -743,6 +743,7 @@ export default function App({ session }: { session: any }) {
         </div>
         <div style={{ fontSize: 11, fontWeight: 700, background: '#F0F0F0', color: '#999', border: '1px solid #E0E0E0', padding: '6px 18px', borderRadius: 20, marginBottom: 12 }}>
           승인되면 이 화면이 자동으로 바뀌어요
+        <button onClick={loadProfile} style={{ marginTop: 12, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '6px 18px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>새로고침</button>
         </div>
         <button onClick={() => supabase.auth.signOut()} style={{ background: 'none', border: 'none', fontSize: 13, color: '#999', cursor: 'pointer', padding: '8px 0' }}>로그아웃</button>
       </div>
