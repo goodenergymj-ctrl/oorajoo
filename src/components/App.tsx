@@ -178,6 +178,15 @@ export default function App({ session }: { session: any }) {
       setReactions(myR)
     }
   }
+  const loadCohortMembers = async () => {
+    if (!myCohortId) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('cohort_id', myCohortId)
+      .eq('is_approved', true)
+    if (data) setCohortMembers(data as Profile[])
+  }
   const loadPending = async () => {
     const { data } = await supabase
       .from('pending_members')
