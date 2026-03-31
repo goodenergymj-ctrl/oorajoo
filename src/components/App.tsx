@@ -1135,7 +1135,7 @@ export default function App({ session }: { session: any }) {
                       {cohorts.find(c => c.id === m.cohort_id)?.name} 신청 · {formatTime(m.created_at)}
                     </div>
                   </div>
-                  <button onClick={() => setPendingMembers(p => p.filter(x => x.id !== m.id))} style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>거절</button>
+                  <button onClick={async () => { await supabase.from('pending_members').delete().eq('id', m.id); setPendingMembers(p => p.filter(x => x.id !== m.id)) }} style={{ background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>거절</button>
                 </div>
                 <button onClick={() => approveMember(m.id, m.user_id, m.cohort_id)} style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 9, padding: '9px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                   {cohorts.find(c => c.id === m.cohort_id)?.name}에 승인하기 ✓
