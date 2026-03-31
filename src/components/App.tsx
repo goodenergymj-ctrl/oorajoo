@@ -221,6 +221,7 @@ export default function App({ session }: { session: any }) {
       loadLounge()
       loadNotice()
       loadReactions()
+      loadCohortMembers()
     }
   }, [myCohortId])
 
