@@ -1163,6 +1163,9 @@ export default function App({ session }: { session: any }) {
             <button style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px 13px', cursor: 'pointer', marginBottom: 8 }} onClick={() => setAdminForm(p => ({ ...p, pollOptions: [...p.pollOptions, ''] }))}>+ 선택지 추가</button>
           </>)}
           <button style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer', opacity: !adminForm.title || !adminForm.body ? 0.4 : 1 }} disabled={!adminForm.title || !adminForm.body} onClick={submitNotice}>공지 올리기</button>
+          {notice && (
+            <button onClick={async () => { if (!confirm('공지를 삭제할까요?')) return; await supabase.from('notices').delete().eq('id', notice.id); setNotice(null) }} style={{ width: '100%', background: 'none', border: '1px solid #DC2626', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, color: '#DC2626', cursor: 'pointer', marginTop: 8 }}>현재 공지 삭제</button>
+          )}
         </>)}
 
         {adminTab === 'pending' && (<>
