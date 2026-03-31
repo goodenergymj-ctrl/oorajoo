@@ -1009,7 +1009,7 @@ export default function App({ session }: { session: any }) {
         <div className="sh-bar-bg"><div className="sh-bar-fill" style={{ width: `${Math.min(100, ((profile?.streak || 0) / 31) * 100)}%` }} /></div>
       </div>
       <div className="stats-grid">
-        {[['내 기록', `${feed.filter(f => f.user_id === session.user.id).length}개`], ['스트릭', `${profile?.streak || 0}일`], ['이번 기수', myCohort?.name || '-'], ['받은 반응', '0개']].map(([l, v]) => (
+        {[['내 기록', `${feed.filter(f => f.user_id === session.user.id).length}개`], ['스트릭', `${profile?.streak || 0}일`], ['이번 기수', myCohort?.name || '-'], ['받은 반응', `${Object.entries(reactionCounts).filter(([k]) => feed.filter(f => f.user_id === session.user.id).some(f => k.startsWith(`feed-${f.id}-`))).reduce((a, [, v]) => a + v, 0)}개`]].map(([l, v]) => (
           <div key={l} className="stat-card"><div style={{ fontSize: 22, fontWeight: 900, color: 'var(--black)' }}>{v}</div><div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 3 }}>{l}</div></div>
         ))}
       </div>
