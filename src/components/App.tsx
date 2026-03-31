@@ -62,6 +62,7 @@ export default function App({ session }: { session: any }) {
   const [viewingCohortId, setViewingCohortId] = useState<number | null>(null)
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
   const [cohortMembers, setCohortMembers] = useState<Profile[]>([])
+  const [cohortCounts, setCohortCounts] = useState<Record<number, number>>({})
   const [tab, setTab] = useState('today')
 
   // 온보딩
@@ -188,6 +189,14 @@ export default function App({ session }: { session: any }) {
       setReactions(myR)
     }
   }
+  const loadCohortCounts = async () => {
+    const { data } = await supabase.from('profiles').select('cohort_id').eq('is_approved', true)
+    if (data) {
+      const counts: Record<number, number> = {}
+      data.forEach(p => { if (p.cohort_id) counts[p.cohort_id] = (counts[p.cohort_id] || 0) + 1 })
+      setCohortCounts(counts)
+    }
+  }
   const loadCohortMembers = async () => {
     if (!myCohortId) return
     const { data } = await supabase
@@ -220,6 +229,7 @@ export default function App({ session }: { session: any }) {
   useEffect(() => {
     loadProfile()
     loadCohorts()
+    loadCohortCounts()
     fetchQuestion()
     window.addEventListener('online', () => setIsOnline(true))
     window.addEventListener('offline', () => setIsOnline(false))
@@ -684,6 +694,10 @@ export default function App({ session }: { session: any }) {
                 {c.start_date || '날짜 미정'} ~ {c.end_date || '날짜 미정'}
               </div>
               {c.price > 0 && <div className="cc-sub" style={{ marginTop: 4 }}>참가비 {c.price.toLocaleString()}원</div>}
+              <div className="cc-sub" style={{ marginTop: 6 }}>
+                👥 {cohortCounts[c.id] || 0}명 참여 / {c.max_slots}명 모집
+                {(cohortCounts[c.id] || 0) >= c.max_slots && <span style={{ color: '#DC2626', fontWeight: 700, marginLeft: 6 }}>마감</span>}
+              </div>
             </div>
           ))}
 
