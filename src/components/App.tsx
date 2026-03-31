@@ -331,7 +331,23 @@ export default function App({ session }: { session: any }) {
       question_answer: myRecord.question_answer,
       is_private: myRecord.is_private,
     })
-    if (!error) { setSubmitted(true); loadFeed() }
+    if (!error) {
+      setSubmitted(true)
+      loadFeed()
+      // streak 업데이트
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const { data: yesterdayFeed } = await supabase
+        .from('feed')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .gte('created_at', yesterday.toISOString().split('T')[0] + 'T00:00:00')
+        .lt('created_at', new Date().toISOString().split('T')[0] + 'T00:00:00')
+        .limit(1)
+      const newStreak = yesterdayFeed && yesterdayFeed.length > 0 ? (profile?.streak || 0) + 1 : 1
+      await supabase.from('profiles').update({ streak: newStreak }).eq('id', session.user.id)
+      loadProfile()
+    }
   }
 
   const handleReact = async (type: 'feed' | 'lounge', targetId: number, emoji: string) => {
