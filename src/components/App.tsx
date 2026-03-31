@@ -331,8 +331,7 @@ export default function App({ session }: { session: any }) {
     } else {
       await supabase.from('reactions').insert({ user_id: session.user.id, target_type: type, target_id: targetId, emoji })
     }
-    setReactions(p => ({ ...p, [key]: !on }))
-    loadReactions()
+   setReactions(p => ({ ...p, [key]: !on }))
     loadReactions()
   }
 
