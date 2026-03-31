@@ -1035,8 +1035,26 @@ export default function App({ session }: { session: any }) {
           ))}
         </div>
       )}
-      <div className="sec-label">멤버 소개</div>
-      <div style={{ padding: '0 16px', fontSize: 13, color: 'var(--ink3)' }}>멤버 목록을 불러오는 중...</div>
+      <div className="sec-label">멤버 소개<span className="sec-sub">{cohortMembers.length}명</span></div>
+      {cohortMembers.length === 0 && <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 멤버가 없어요</div>}
+      {cohortMembers.map(m => (
+        <div key={m.id} className="mc" onClick={() => setSelectedProfile(m)}>
+          <div className="mc-top">
+            <div className="mc-av" style={{ background: m.color || '#333' }}>{m.nickname?.[0] || '?'}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</div>
+              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥</div>
+            </div>
+            {m.id === session.user.id && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>}
+          </div>
+          {m.intro && <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7, marginBottom: 6 }}>{m.intro}</div>}
+          {(m.tags || []).length > 0 && (
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {m.tags.map((t: string, i: number) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 20 }}>{t}</span>)}
+            </div>
+          )}
+        </div>
+      ))}
     </>
   )
 
