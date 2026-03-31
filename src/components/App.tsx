@@ -268,7 +268,7 @@ export default function App({ session }: { session: any }) {
         naver_blog: obNaver.trim() || null,
         is_admin: false,
         is_approved: false,
-        color: '#1A1A1A',
+        color: ['#1A1A1A', '#2D4A7A', '#5C3D7A', '#7A3D3D', '#2D6B4A', '#6B4A2D', '#3D5C7A', '#7A5C2D'][Math.floor(Math.random() * 8)],
         tags: [],
         streak: 0,
       })
