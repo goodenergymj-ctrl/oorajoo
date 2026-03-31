@@ -395,7 +395,9 @@ export default function App({ session }: { session: any }) {
 
   const approveMember = async (pendingId: number, userId: string, targetCohortId: number) => {
     await supabase.from('profiles').update({ cohort_id: targetCohortId, is_approved: true }).eq('id', userId)
-    await supabase.from('pending_members').delete().eq('id', pendingId)
+     await supabase.from('pending_members').delete().eq('id', pendingId)
+    loadPending()
+    loadCohortMembers()
     loadPending()
   }
 
