@@ -435,7 +435,7 @@ export default function App({ session }: { session: any }) {
 
   const saveCohort = async () => {
     if (!editingCohort) return
-    await supabase.from('cohorts').update({ start_date: editingCohort.start_date, end_date: editingCohort.end_date, status: editingCohort.status }).eq('id', editingCohort.id)
+    await supabase.from('cohorts').update({ start_date: editingCohort.start_date, end_date: editingCohort.end_date, status: editingCohort.status, max_slots: editingCohort.max_slots }).eq('id', editingCohort.id)
     setEditingCohort(null); loadCohorts()
   }
 
@@ -1201,11 +1201,16 @@ export default function App({ session }: { session: any }) {
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 7 }}>
                     <div>
+                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 7 }}>현재 {cohortCounts[c.id] || 0}명 참여 중</div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>시작일</div>
                       <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.start_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, start_date: e.target.value } : p)} />
                     </div>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>종료일</div>
+                      <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>모집인원</div>
+                      <input type="number" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.max_slots || 20} onChange={e => setEditingCohort(p => p ? { ...p, max_slots: Number(e.target.value) } : p)} />
+                    </div>
                       <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.end_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, end_date: e.target.value } : p)} />
                     </div>
                   </div>
