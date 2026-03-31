@@ -343,11 +343,6 @@ export default function App({ session }: { session: any }) {
     loadFeed()
   }
 
-  const getReactionCount = (item: any, emoji: string, type: 'feed' | 'lounge') => {
-    const reactions = item.reactions || []
-    return reactions.filter((r: any) => r.emoji === emoji && r.target_type === type).length
-  }
-
   const submitPost = async () => {
     if (!newPost.trim()) return
     let imageUrl = null
