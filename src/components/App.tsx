@@ -462,7 +462,8 @@ export default function App({ session }: { session: any }) {
   const saveEditPost = async () => {
     if (!editingPostId || !editingPostType) return
     if (editingPostType === 'lounge') {
-      await supabase.from('lounge').update({ content: editingPostText }).eq('id', editingPostId)
+      const post = lounge.find(p => p.id === editingPostId)
+      await supabase.from('lounge').update({ content: editingPostText, tag: post?.tag || null }).eq('id', editingPostId)
       loadLounge()
     }
     setEditingPostId(null); setEditingPostText(''); setEditingPostType(null)
