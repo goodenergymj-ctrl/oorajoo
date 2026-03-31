@@ -760,7 +760,10 @@ export default function App({ session }: { session: any }) {
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
             {isMe && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, marginLeft: 5 }}>나</span>}
             {item.is_private && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 7px', borderRadius: 20, marginLeft: 4 }}>나만</span>}
-            <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{formatTime(item.created_at)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{formatTime(item.created_at)}</div>
+              {isMe && <button onClick={async () => { if (!confirm('삭제할까요?')) return; await supabase.from('feed').delete().eq('id', item.id); setSubmitted(false); loadFeed() }} style={{ fontSize: 10, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>삭제</button>}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 9, alignItems: 'flex-start' }}>
