@@ -61,6 +61,7 @@ export default function App({ session }: { session: any }) {
   const [qLoading, setQLoading] = useState(true)
   const [viewingCohortId, setViewingCohortId] = useState<number | null>(null)
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
+  const [cohortMembers, setCohortMembers] = useState<Profile[]>([])
   const [tab, setTab] = useState('today')
 
   // 온보딩
