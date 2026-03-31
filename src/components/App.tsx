@@ -134,6 +134,16 @@ export default function App({ session }: { session: any }) {
     if (data) setCohorts(data)
   }
 
+  const checkTodaySubmitted = async () => {
+    const today = new Date().toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('feed')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .gte('created_at', today + 'T00:00:00')
+      .limit(1)
+    if (data && data.length > 0) setSubmitted(true)
+  }
   const loadFeed = async () => {
     if (!myCohortId) return
     const { data } = await supabase
@@ -220,6 +230,7 @@ export default function App({ session }: { session: any }) {
       loadFeed()
       loadLounge()
       loadNotice()
+      checkTodaySubmitted()
       loadReactions()
       loadCohortMembers()
     }
