@@ -358,7 +358,7 @@ export default function App({ session }: { session: any }) {
     }
     await supabase.from('lounge').insert({
       user_id: session.user.id, cohort_id: myCohortId,
-      content: newPost, tag: postTags.join(' ') || null, image_url: null,
+      content: newPost, tag: postTags.join(' ') || null, image_url: imageUrl,
     })
     setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
     loadLounge()
