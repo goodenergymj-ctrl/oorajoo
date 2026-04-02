@@ -120,7 +120,7 @@ export default function Auth() {
         options: { data: { nickname: nickname.trim() } }
       })
       if (error) setMessage(error.message)
-      else setMessage('가입하기 완료! 관리자 승인 후 이용할 수 있어요 🌿')
+      else setMessage('가입 완료! 이메일함에서 인증 링크를 확인해주세요 ✉️')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setMessage('이메일 또는 비밀번호를 확인해주세요')

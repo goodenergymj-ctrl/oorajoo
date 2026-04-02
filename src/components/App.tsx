@@ -187,7 +187,7 @@ export default function App({ session }: { session: any }) {
       .or(`cohort_id.eq.${myCohortId},cohort_id.is.null`)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     if (data) setNotice(data)
   }
 
