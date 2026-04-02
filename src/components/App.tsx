@@ -421,8 +421,9 @@ export default function App({ session }: { session: any }) {
     if (postImage) {
       const fd = new FormData(); fd.append('file', postImage)
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) { alert('이미지 업로드에 실패했어요'); return }
-      const d = await res.json(); imageUrl = d.url || null
+      const d = await res.json()
+      if (!res.ok) { alert('이미지 업로드 실패: ' + (d.error || res.status)); return }
+      imageUrl = d.url || null
     }
     await supabase.from('lounge').insert({
       user_id: session.user.id, cohort_id: myCohortId,
