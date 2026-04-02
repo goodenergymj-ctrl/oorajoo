@@ -303,6 +303,12 @@ export default function App({ session }: { session: any }) {
   }, [])
 
   useEffect(() => {
+    if (profileLoaded && profile?.nickname) {
+      subscribePush()
+    }
+  }, [profileLoaded])
+
+  useEffect(() => {
     if (myCohortId) {
       loadFeed()
       loadLounge()
@@ -1359,7 +1365,7 @@ export default function App({ session }: { session: any }) {
               <div className="settings-row-sub">{pushGranted ? '댓글·반응 알림이 켜져 있어요' : '탭해서 알림 허용하기'}</div>
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: pushGranted ? '#16A34A' : 'var(--ink3)' }}>
-              {pushGranted ? '켜짐' : '끄짐'}
+              {pushGranted ? '켜짐' : '꺼짐'}
             </div>
           </div>
         </div>
