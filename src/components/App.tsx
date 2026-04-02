@@ -304,7 +304,7 @@ export default function App({ session }: { session: any }) {
 
   useEffect(() => {
     if (profileLoaded && profile?.nickname) {
-      subscribePush()
+      subscribePush().catch(() => {})
     }
   }, [profileLoaded])
 
@@ -351,16 +351,18 @@ export default function App({ session }: { session: any }) {
 
   // ─── 핸들러 ────────────────────────────────────────────────
   const subscribePush = async () => {
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) return
-    const permission = await Notification.requestPermission()
-    if (permission !== 'granted') return
-    setPushGranted(true)
     try {
+      if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') return
+      setPushGranted(true)
       const reg = await navigator.serviceWorker.ready
+      if (!reg.pushManager) return
       const existing = await reg.pushManager.getSubscription()
       const sub = existing || await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
       })
       await fetch('/api/push/subscribe', {
         method: 'POST',
