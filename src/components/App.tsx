@@ -495,8 +495,9 @@ export default function App({ session }: { session: any }) {
     const tags = typeof editData.tags === 'string'
       ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
       : editData.tags
-    await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
-    loadProfile(); setEditingProfile(false); setSelectedProfile(null)
+    const { error } = await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
+    if (error) { alert('저장 실패: ' + error.message); return }
+    await loadProfile(); setEditingProfile(false); setSelectedProfile(null)
   }
 
     const deletePost = async (id: number, type: 'feed' | 'lounge') => {
@@ -1247,7 +1248,7 @@ export default function App({ session }: { session: any }) {
       <div className="settings-section">
         <div className="settings-title">서비스</div>
         <div className="settings-card">
-          <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">contact@oorajoo.kr</div></div></div>
+          <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">oorajoo@naver.com</div></div></div>
         </div>
       </div>
       <div className="settings-section">
