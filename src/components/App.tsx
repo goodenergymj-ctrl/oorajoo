@@ -419,11 +419,12 @@ export default function App({ session }: { session: any }) {
     if (!newPost.trim()) return
     let imageUrl = null
     if (postImage) {
-      const fd = new FormData(); fd.append('file', postImage)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const d = await res.json()
-      if (!res.ok) { alert('이미지 업로드 실패: ' + (d.error || res.status)); return }
-      imageUrl = d.url || null
+      const ext = postImage.name.split('.').pop() || 'jpg'
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('images').upload(filename, postImage, { contentType: postImage.type })
+      if (uploadError) { alert('이미지 업로드 실패: ' + uploadError.message); return }
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filename)
+      imageUrl = publicUrl
     }
     await supabase.from('lounge').insert({
       user_id: session.user.id, cohort_id: myCohortId,
