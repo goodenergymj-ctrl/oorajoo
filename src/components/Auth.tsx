@@ -251,7 +251,7 @@ export default function Auth() {
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기하기' : '재설정 링크 보내기'}
+          {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : '재설정 링크 보내기'}
         </button>
         {message && (
           <div style={{ fontSize: 12, color: '#555', marginTop: 12, lineHeight: 1.6, textAlign: 'center' as const }}>{message}</div>

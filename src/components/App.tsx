@@ -216,12 +216,11 @@ export default function App({ session }: { session: any }) {
     }
   }
   const loadCohortMembers = async () => {
-    if (!myCohortId) return
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .eq('cohort_id', myCohortId)
       .eq('is_approved', true)
+      .order('created_at', { ascending: true })
     if (data) setCohortMembers(data as Profile[])
   }
   const loadPending = async () => {
@@ -816,10 +815,10 @@ export default function App({ session }: { session: any }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 9, alignItems: 'flex-start' }}>
-          <span className="fc-badge">🙏 감사</span><span className="fc-text">{item.gratitude}</span>
+          <span className="fc-badge">🙏 오늘의 감사</span><span className="fc-text">{item.gratitude}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 9, alignItems: 'flex-start' }}>
-          <span className="fc-badge">🎯 목표</span><span className="fc-text">{item.goal}</span>
+          <span className="fc-badge">🎯 오늘의 목표</span><span className="fc-text">{item.goal}</span>
         </div>
         <div className="fc-q">
           <div className="fc-q-lbl">✦ QUESTION</div>
@@ -838,6 +837,7 @@ export default function App({ session }: { session: any }) {
             })}
             <button className="cmt-btn" onClick={() => setExpandedComments(p => ({ ...p, [item.id]: !p[item.id] }))}>
               <Icon name="chat" size={13} color="var(--ink3)" />
+              {(item.comments || []).length > 0 && <span>{(item.comments || []).length}</span>}
             </button>
             <button className="cmt-btn" style={{ marginLeft: 'auto' }} onClick={() => openShare(item, 'feed')}>
               <Icon name="share" size={13} color="var(--ink3)" /><span>공유</span>
@@ -911,8 +911,8 @@ export default function App({ session }: { session: any }) {
                     <span style={{ fontSize: 10, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)' }}>Day {challengeDay} / 30</span>
                   </div>
                   {[
-                    { key: 'gratitude', dot: '#1A1A1A', label: '오늘의 감사', ph: '작은 것도 충분해요!' },
-                    { key: 'goal', dot: '#555', label: '오늘의 목표', ph: '오늘 딱 하나만 이룬다면?' },
+                    { key: 'gratitude', dot: '#1A1A1A', label: '오늘의 감사', ph: '오늘 감사한 것, 작은 것도 충분해요!' },
+                    { key: 'goal', dot: '#555', label: '오늘의 목표', ph: '오늘 딱 하나만 이룬다면? (작게 써도 좋아요)' },
                   ].map(({ key, dot, label, ph }) => (
                     <div key={key} style={{ marginBottom: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
@@ -1194,8 +1194,8 @@ export default function App({ session }: { session: any }) {
         {feed.filter(f => f.user_id === session.user.id).slice(0, 10).map(item => (
           <div key={item.id} className="hist-card">
             <div className="hist-date">{formatTime(item.created_at)}</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 9, alignItems: 'flex-start' }}><span className="fc-badge">🙏 감사</span><span className="fc-text">{item.gratitude}</span></div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><span className="fc-badge">🎯 목표</span><span className="fc-text">{item.goal}</span></div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 9, alignItems: 'flex-start' }}><span className="fc-badge">🙏 오늘의 감사</span><span className="fc-text">{item.gratitude}</span></div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><span className="fc-badge">🎯 오늘의 목표</span><span className="fc-text">{item.goal}</span></div>
           </div>
         ))}
       </>
