@@ -83,6 +83,7 @@ export default function App({ session }: { session: any }) {
   // 기록
   const [myRecord, setMyRecord] = useState({ gratitude: '', goal: '', question_answer: '', is_private: false })
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [cheerMsg] = useState(() => CHEERS[Math.floor(Math.random() * CHEERS.length)])
 
   // 라운지
@@ -127,13 +128,9 @@ export default function App({ session }: { session: any }) {
   const myFeed = feed.filter(f => f.cohort_id === myCohortId)
 
   const challengeStartDate = new Date(profile?.challenge_started_at || profile?.created_at || new Date())
-  const getChallengeDay = () => {
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    return Math.max(1, Math.min(diff, 30))
-  }
-  const challengeDay = getChallengeDay()
-  const challengeEnded = challengeDay >= 30
+  const rawChallengeDay = Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  const challengeDay = Math.max(1, Math.min(rawChallengeDay, 30))
+  const challengeEnded = rawChallengeDay > 30
   const challengeRound = profile?.challenge_round || 1
 
   // ─── 데이터 로드 ────────────────────────────────────────────
@@ -357,6 +354,7 @@ export default function App({ session }: { session: any }) {
 
   const submitRecord = async () => {
     if (!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()) return
+    setSubmitting(true)
     const { error } = await supabase.from('feed').insert({
       user_id: session.user.id,
       cohort_id: myCohortId,
@@ -384,6 +382,7 @@ export default function App({ session }: { session: any }) {
       await supabase.from('profiles').update({ streak: newStreak }).eq('id', session.user.id)
       loadProfile()
     }
+    setSubmitting(false)
   }
 
   const handleReact = async (type: 'feed' | 'lounge', targetId: number, emoji: string) => {
@@ -924,7 +923,7 @@ export default function App({ session }: { session: any }) {
                       <div style={{ position: 'absolute', top: 2, left: myRecord.is_private ? 17 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                     </div>
                   </div>
-                  <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()} onClick={submitRecord}>공유하기</button>
+                  <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim() || submitting} onClick={submitRecord}>{submitting ? '공유 중...' : '공유하기'}</button>
                 </>
               )}
             </div>
@@ -1194,9 +1193,9 @@ export default function App({ session }: { session: any }) {
           <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--black)', color: 'white', padding: '4px 11px', borderRadius: 20 }}>{isEnded ? '챌린지 완료 🎉' : `Day ${challengeDay} / 30`}</span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 13 }}>
-          {profile?.created_at ? `${new Date(profile.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 시작` : ''}
+          {`${challengeStartDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 시작`}
           {' — '}
-          {profile?.created_at ? `${new Date(new Date(profile.created_at).getTime() + 29 * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 완료` : ''}
+          {`${new Date(challengeStartDate.getTime() + 29 * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 완료`}
         </div>
         <div style={{ height: 3, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 5 }}>
           <div style={{ height: '100%', background: 'var(--black)', borderRadius: 3, width: `${Math.min(100, (challengeDay / 30) * 100)}%` }} />
