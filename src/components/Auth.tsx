@@ -59,7 +59,7 @@ const SLIDES = [
     visual: (
       <svg viewBox="0 0 280 120" width="280" xmlns="http://www.w3.org/2000/svg">
         {[
-          { x: 10, y: 8, w: 180, text: '오늘 드디어 운동 시작했어요 💪', name: '민지' },
+          { x: 10, y: 8, w: 180, text: '오늘 드디어 운동 시작했어요 💪', name: '소연' },
           { x: 50, y: 44, w: 200, text: '저도요! 같이 해봐요 🌿', name: '지우' },
           { x: 10, y: 80, w: 190, text: '30일 완주 응원합니다 🔥', name: '하은' },
         ].map(({ x, y, w, text, name }, i) => (
