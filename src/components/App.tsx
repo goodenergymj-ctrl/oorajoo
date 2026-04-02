@@ -1245,7 +1245,6 @@ export default function App({ session }: { session: any }) {
       <div className="settings-section">
         <div className="settings-title">서비스</div>
         <div className="settings-card">
-          <div className="settings-row" onClick={() => setShowPolicy(true)}><div><div className="settings-row-label">환불 정책 및 이용약관</div></div><span style={{ fontSize: 12, color: 'var(--ink3)' }}>→</span></div>
           <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">contact@oorajoo.kr</div></div></div>
         </div>
       </div>
