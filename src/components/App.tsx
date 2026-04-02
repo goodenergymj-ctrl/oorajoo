@@ -495,9 +495,14 @@ export default function App({ session }: { session: any }) {
     const tags = typeof editData.tags === 'string'
       ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
       : editData.tags
-    const { error } = await supabase.from('profiles').update({ nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }).eq('id', session.user.id)
+    const updates = { nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }
+    const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id)
     if (error) { alert('저장 실패: ' + error.message); return }
-    await loadProfile(); setEditingProfile(false); setSelectedProfile(null)
+    await loadProfile()
+    setProfile(p => p ? { ...p, ...updates } : p)
+    setEditingProfile(false)
+    setSelectedProfile(null)
+    showToast('프로필이 수정됐어요 ✓')
   }
 
     const deletePost = async (id: number, type: 'feed' | 'lounge') => {
