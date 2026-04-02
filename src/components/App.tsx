@@ -119,6 +119,8 @@ export default function App({ session }: { session: any }) {
   const [isOnline, setIsOnline] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const [editingFeedItem, setEditingFeedItem] = useState<{ id: number; gratitude: string; goal: string; question_answer: string } | null>(null)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [posting, setPosting] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -417,7 +419,8 @@ export default function App({ session }: { session: any }) {
   }
 
   const submitPost = async () => {
-    if (!newPost.trim()) return
+    if (!newPost.trim() || posting) return
+    setPosting(true)
     let imageUrl = null
     if (postImage) {
       const ext = postImage.name.split('.').pop() || 'jpg'
@@ -432,6 +435,7 @@ export default function App({ session }: { session: any }) {
       content: newPost, tag: postTags.join(' ') || null, image_url: imageUrl,
     })
     setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
+    setPosting(false)
     loadLounge()
   }
 
@@ -492,18 +496,19 @@ export default function App({ session }: { session: any }) {
   }
 
   const saveProfileEdit = async () => {
+    setSavingProfile(true)
     const tags = typeof editData.tags === 'string'
       ? editData.tags.split(' ').filter((t: string) => t.startsWith('#'))
       : editData.tags
     const updates = { nickname: editData.nickname, intro: editData.intro, tags, threads_id: editData.threads_id || null, insta_id: editData.insta_id || null, naver_blog: editData.naver_blog || null }
     const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id)
+    setSavingProfile(false)
     if (error) { alert('저장 실패: ' + error.message); return }
     setProfile(p => p ? { ...p, ...updates } : p)
+    setCohortMembers(prev => prev.map(m => m.id === session.user.id ? { ...m, ...updates } : m))
     setEditingProfile(false)
     setSelectedProfile(null)
     showToast('프로필이 수정됐어요 ✓')
-    loadProfile()
-    loadCohortMembers()
   }
 
     const deletePost = async (id: number, type: 'feed' | 'lounge') => {
@@ -1020,7 +1025,7 @@ export default function App({ session }: { session: any }) {
   )}
 </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={submitPost}>공유하기</button>
+            <button style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: '9px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: posting ? 0.6 : 1 }} disabled={posting} onClick={submitPost}>{posting ? '올리는 중...' : '공유하기'}</button>
             <button style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer' }} onClick={() => { setShowPostInput(false); setNewPost(''); setPostTags([]); setShowCustomTag(false) }}>취소</button>
           </div>
         </div>
@@ -1435,7 +1440,7 @@ export default function App({ session }: { session: any }) {
                     </div>
                   ))}
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer' }} onClick={saveProfileEdit}>저장하기</button>
+                    <button style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer', opacity: savingProfile ? 0.6 : 1 }} disabled={savingProfile} onClick={saveProfileEdit}>{savingProfile ? '저장 중...' : '저장하기'}</button>
                     <button style={{ flex: 1, background: 'var(--surface)', color: 'var(--ink2)', border: 'none', borderRadius: 14, padding: 13, fontSize: 13, fontWeight: 700, cursor: 'pointer' }} onClick={() => setEditingProfile(false)}>취소</button>
                   </div>
                 </>
