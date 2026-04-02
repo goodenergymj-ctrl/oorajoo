@@ -791,6 +791,7 @@ export default function App({ session }: { session: any }) {
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
             {isMe && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, marginLeft: 5 }}>나</span>}
+            {(mp?.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '2px 6px', borderRadius: 20, marginLeft: 4 }}>{mp.challenge_round}R</span>}
             {item.is_private && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '2px 7px', borderRadius: 20, marginLeft: 4 }}>나만</span>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{formatTime(item.created_at)}</div>
@@ -1210,7 +1211,10 @@ export default function App({ session }: { session: any }) {
           <div className="mc-top">
             <div className="mc-av" style={{ background: m.color || '#333' }}>{m.nickname?.[0] || '?'}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</span>
+                {(m.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '2px 7px', borderRadius: 20 }}>{m.challenge_round}R</span>}
+              </div>
               <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥</div>
             </div>
             {m.id === session.user.id && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>}
@@ -1419,7 +1423,10 @@ export default function App({ session }: { session: any }) {
                 <>
                   <div style={{ width: 70, height: 70, borderRadius: 22, background: selectedProfile.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 25, fontWeight: 900, color: 'white', margin: '0 auto 13px' }}>{selectedProfile.nickname?.[0]}</div>
                   <div style={{ fontSize: 21, fontWeight: 900, color: 'var(--black)', textAlign: 'center', letterSpacing: '-0.5px' }}>{selectedProfile.nickname}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink3)', textAlign: 'center', marginBottom: 14 }}>{selectedProfile.streak}일 연속 🔥</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{selectedProfile.streak}일 연속 🔥</span>
+                    {(selectedProfile.challenge_round || 1) >= 2 && <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '2px 9px', borderRadius: 20 }}>{selectedProfile.challenge_round}라운드 도전중</span>}
+                  </div>
                   {selectedProfile.intro && <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.75, marginBottom: 14 }}>{selectedProfile.intro}</div>}
                   {(selectedProfile.tags || []).length > 0 && (
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
