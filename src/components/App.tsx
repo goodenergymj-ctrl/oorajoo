@@ -123,6 +123,7 @@ export default function App({ session }: { session: any }) {
   const [posting, setPosting] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [showIOSGuide, setShowIOSGuide] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -265,7 +266,13 @@ export default function App({ session }: { session: any }) {
     // PWA 설치 감지
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as any).standalone === true
-    if (isStandalone) setIsInstalled(true)
+    if (isStandalone) {
+      setIsInstalled(true)
+    } else {
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+      const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent)
+      if (isIOS && isSafari) setShowIOSGuide(true)
+    }
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault()
@@ -604,6 +611,13 @@ export default function App({ session }: { session: any }) {
     .install-bar-sub{font-size:10px;font-weight:400;color:rgba(255,255,255,0.55);display:block;margin-top:1px;}
     .install-bar-btn{flex-shrink:0;background:white;color:var(--black);border:none;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;}
     .install-bar-close{flex-shrink:0;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;padding:4px;line-height:1;font-size:16px;}
+    .ios-guide{background:var(--black);padding:12px 16px 14px;position:relative;}
+    .ios-guide-title{font-size:12px;font-weight:700;color:white;margin-bottom:8px;}
+    .ios-guide-steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .ios-guide-step{display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,0.75);font-weight:500;}
+    .ios-guide-step-icon{font-size:15px;line-height:1;}
+    .ios-guide-arrow{color:rgba(255,255,255,0.3);font-size:10px;}
+    .ios-guide-close{position:absolute;top:10px;right:12px;background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:16px;line-height:1;padding:2px;}
     .hdr{padding:14px 18px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;background:rgba(247,247,247,0.92);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);}
     .hdr-wm{font-size:17px;font-weight:900;letter-spacing:-0.8px;color:var(--black);}
     .hdr-sub{font-size:10px;color:var(--ink3);margin-top:2px;}
@@ -1368,6 +1382,28 @@ export default function App({ session }: { session: any }) {
             </div>
             <button className="install-bar-btn" onClick={handleInstall}>설치</button>
             <button className="install-bar-close" onClick={() => setInstallPrompt(null)}>✕</button>
+          </div>
+        )}
+
+        {!isInstalled && showIOSGuide && (
+          <div className="ios-guide">
+            <button className="ios-guide-close" onClick={() => setShowIOSGuide(false)}>✕</button>
+            <div className="ios-guide-title">홈화면에 앱으로 추가하기</div>
+            <div className="ios-guide-steps">
+              <div className="ios-guide-step">
+                <span className="ios-guide-step-icon">⬆️</span>
+                <span>하단 공유 버튼 탭</span>
+              </div>
+              <span className="ios-guide-arrow">›</span>
+              <div className="ios-guide-step">
+                <span className="ios-guide-step-icon">➕</span>
+                <span>홈 화면에 추가</span>
+              </div>
+              <span className="ios-guide-arrow">›</span>
+              <div className="ios-guide-step">
+                <span className="ios-guide-step-icon">추가</span>
+              </div>
+            </div>
           </div>
         )}
 
