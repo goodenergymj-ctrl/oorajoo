@@ -19,6 +19,8 @@ export type Profile = {
   is_admin: boolean
   is_approved: boolean
   created_at: string
+  challenge_started_at: string | null
+  challenge_round: number
 }
 
 export type Cohort = {

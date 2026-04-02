@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function Auth() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
@@ -12,9 +12,19 @@ export default function Auth() {
   const [message, setMessage] = useState('')
 
   const handleSubmit = async () => {
-    if (!email || !password) return
     setLoading(true)
     setMessage('')
+    if (mode === 'forgot') {
+      if (!email) { setMessage('이메일을 입력해주세요'); setLoading(false); return }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      })
+      if (error) setMessage(error.message)
+      else setMessage('비밀번호 재설정 링크를 이메일로 보냈어요 ✉️')
+      setLoading(false)
+      return
+    }
+    if (!email || !password) { setLoading(false); return }
     if (mode === 'signup') {
       if (!nickname.trim()) {
         setMessage('닉네임을 입력해주세요')
@@ -64,7 +74,7 @@ export default function Auth() {
 
       <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 360 }}>
         <div style={{ fontSize: 18, fontWeight: 900, color: '#0A0A0A', marginBottom: 20 }}>
-          {mode === 'login' ? '로그인' : '가입 신청'}
+          {mode === 'login' ? '로그인' : mode === 'signup' ? '가입 신청' : '비밀번호 재설정'}
         </div>
         {mode === 'signup' && (
           <div>
@@ -100,19 +110,30 @@ export default function Auth() {
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? '처리 중...' : mode === 'login' ? '로그인' : '가입 신청하기'}
+          {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '가입 신청하기' : '재설정 링크 보내기'}
         </button>
         {message && (
           <div style={{ fontSize: 12, color: '#555', marginTop: 12, lineHeight: 1.6, textAlign: 'center' as const }}>{message}</div>
         )}
         <div style={{ textAlign: 'center' as const, marginTop: 16, fontSize: 13, color: '#999' }}>
           {mode === 'login' ? (
-            <span>아직 계정이 없어요?{' '}
-              <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('signup'); setMessage('') }}>가입 신청</button>
-            </span>
-          ) : (
+            <>
+              <div style={{ marginBottom: 8 }}>
+                <span>아직 계정이 없어요?{' '}
+                  <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('signup'); setMessage('') }}>가입 신청</button>
+                </span>
+              </div>
+              <div>
+                <button style={{ color: '#999', fontWeight: 600, cursor: 'pointer', background: 'none', border: 'none', fontSize: 12, fontFamily: 'inherit' }} onClick={() => { setMode('forgot'); setMessage('') }}>비밀번호를 잊으셨나요?</button>
+              </div>
+            </>
+          ) : mode === 'signup' ? (
             <span>이미 계정이 있어요?{' '}
               <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('login'); setMessage('') }}>로그인</button>
+            </span>
+          ) : (
+            <span>
+              <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('login'); setMessage('') }}>← 로그인으로 돌아가기</button>
             </span>
           )}
         </div>
