@@ -120,7 +120,7 @@ export default function Auth() {
         options: { data: { nickname: nickname.trim() } }
       })
       if (error) setMessage(error.message)
-      else setMessage('가입 신청 완료! 관리자 승인 후 이용할 수 있어요 🌿')
+      else setMessage('가입하기 완료! 관리자 승인 후 이용할 수 있어요 🌿')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setMessage('이메일 또는 비밀번호를 확인해주세요')
@@ -211,7 +211,7 @@ export default function Auth() {
 
       <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 360 }}>
         <div style={{ fontSize: 18, fontWeight: 900, color: '#0A0A0A', marginBottom: 20 }}>
-          {mode === 'login' ? '로그인' : mode === 'signup' ? '가입 신청' : '비밀번호 재설정'}
+          {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : '비밀번호 재설정'}
         </div>
         {mode === 'signup' && (
           <div>
@@ -251,7 +251,7 @@ export default function Auth() {
           onClick={handleSubmit}
           disabled={loading}
         >
-          {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '가입 신청하기' : '재설정 링크 보내기'}
+          {loading ? '처리 중...' : mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기하기' : '재설정 링크 보내기'}
         </button>
         {message && (
           <div style={{ fontSize: 12, color: '#555', marginTop: 12, lineHeight: 1.6, textAlign: 'center' as const }}>{message}</div>
@@ -261,7 +261,7 @@ export default function Auth() {
             <>
               <div style={{ marginBottom: 8 }}>
                 <span>아직 계정이 없어요?{' '}
-                  <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('signup'); setMessage('') }}>가입 신청</button>
+                  <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('signup'); setMessage('') }}>가입하기</button>
                 </span>
               </div>
               <div>
