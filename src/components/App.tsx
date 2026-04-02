@@ -247,6 +247,7 @@ export default function App({ session }: { session: any }) {
     loadProfile()
     loadCohorts()
     loadCohortCounts()
+    loadCohortMembers()
     fetchQuestion()
     const onOnline = () => setIsOnline(true)
     const onOffline = () => setIsOnline(false)
