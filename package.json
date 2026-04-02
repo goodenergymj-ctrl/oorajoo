@@ -4,15 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/generate-icons.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "next": "15.2.8",
     "react": "^19",
     "react-dom": "^19",
     "@supabase/supabase-js": "^2.43.0",
-    "@supabase/ssr": "^0.5.1"
+    "@supabase/ssr": "^0.5.1",
+    "@ducanh2912/next-pwa": "^3.9.0"
   },
   "devDependencies": {
     "typescript": "^5",
@@ -20,6 +23,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.2.8"
+    "eslint-config-next": "15.2.8",
+    "sharp": "^0.33.0"
   }
 }
