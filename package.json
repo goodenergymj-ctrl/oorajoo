@@ -15,7 +15,7 @@
     "react-dom": "^19",
     "@supabase/supabase-js": "^2.43.0",
     "@supabase/ssr": "^0.5.1",
-    "@ducanh2912/next-pwa": "^3.9.0"
+    "@ducanh2912/next-pwa": "*"
   },
   "devDependencies": {
     "typescript": "^5",
