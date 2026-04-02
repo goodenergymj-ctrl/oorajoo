@@ -1454,11 +1454,23 @@ export default function App({ session }: { session: any }) {
         {showDeleteConfirm && (
           <div className="confirm-bg" onClick={e => { if (e.target === e.currentTarget) setShowDeleteConfirm(false) }}>
             <div style={{ background: 'var(--white)', borderRadius: 20, padding: '24px 20px', width: 'calc(100% - 40px)', maxWidth: 360 }}>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', marginBottom: 8 }}>탈퇴 신청</div>
-              <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.65, marginBottom: 20 }}>탈퇴 신청은 <strong>contact@oorajoo.kr</strong>로 문의해 주세요. 확인 후 계정과 기록을 삭제해드려요.</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#DC2626', marginBottom: 8 }}>정말 탈퇴할까요?</div>
+              <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.65, marginBottom: 20 }}>모든 기록, 댓글, 반응이 <strong>즉시 삭제</strong>되며 복구할 수 없어요.</div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => supabase.auth.signOut()} style={{ flex: 1, background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>로그아웃만 하기</button>
-                <button onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>닫기</button>
+                <button onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1, background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>취소</button>
+                <button onClick={async () => {
+                  const res = await fetch('/api/delete-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: session.user.id }),
+                  })
+                  if (res.ok) {
+                    await supabase.auth.signOut()
+                  } else {
+                    const d = await res.json()
+                    alert('탈퇴 실패: ' + d.error)
+                  }
+                }} style={{ flex: 1, background: '#DC2626', color: 'white', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>탈퇴하기</button>
               </div>
             </div>
           </div>
