@@ -219,7 +219,7 @@ export default function App({ session }: { session: any }) {
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .eq('is_approved', true)
+      .not('nickname', 'is', null)
       .order('created_at', { ascending: true })
     if (data) setCohortMembers(data as Profile[])
   }
