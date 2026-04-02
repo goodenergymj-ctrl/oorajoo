@@ -1421,8 +1421,30 @@ export default function App({ session }: { session: any }) {
                   <div style={{ fontSize: 11, color: 'var(--ink3)', textAlign: 'center', marginBottom: 14 }}>{selectedProfile.streak}일 연속 🔥</div>
                   {selectedProfile.intro && <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.75, marginBottom: 14 }}>{selectedProfile.intro}</div>}
                   {(selectedProfile.tags || []).length > 0 && (
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 18 }}>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
                       {selectedProfile.tags.map((t, i) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 20 }}>{t}</span>)}
+                    </div>
+                  )}
+                  {(selectedProfile.threads_id || selectedProfile.insta_id || selectedProfile.naver_blog) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18, background: 'var(--surface)', borderRadius: 12, padding: '12px 14px' }}>
+                      {selectedProfile.threads_id && (
+                        <a href={`https://www.threads.net/@${selectedProfile.threads_id}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 6, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>T</div>
+                          <span style={{ fontSize: 12, color: 'var(--ink2)', fontWeight: 600 }}>@{selectedProfile.threads_id}</span>
+                        </a>
+                      )}
+                      {selectedProfile.insta_id && (
+                        <a href={`https://www.instagram.com/${selectedProfile.insta_id}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg,#f09433,#dc2743,#bc1888)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>I</div>
+                          <span style={{ fontSize: 12, color: 'var(--ink2)', fontWeight: 600 }}>@{selectedProfile.insta_id}</span>
+                        </a>
+                      )}
+                      {selectedProfile.naver_blog && (
+                        <a href={`https://blog.naver.com/${selectedProfile.naver_blog}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 6, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>N</div>
+                          <span style={{ fontSize: 12, color: 'var(--ink2)', fontWeight: 600 }}>{selectedProfile.naver_blog}</span>
+                        </a>
+                      )}
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8 }}>
