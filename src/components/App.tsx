@@ -121,6 +121,8 @@ export default function App({ session }: { session: any }) {
   const [editingFeedItem, setEditingFeedItem] = useState<{ id: number; gratitude: string; goal: string; question_answer: string } | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [posting, setPosting] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<any>(null)
+  const [isInstalled, setIsInstalled] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -259,10 +261,26 @@ export default function App({ session }: { session: any }) {
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // PWA 설치 감지
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || (window.navigator as any).standalone === true
+    if (isStandalone) setIsInstalled(true)
+
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    const onAppInstalled = () => setIsInstalled(true)
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    window.addEventListener('appinstalled', onAppInstalled)
+
     return () => {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+      window.removeEventListener('appinstalled', onAppInstalled)
     }
   }, [])
 
@@ -308,6 +326,14 @@ export default function App({ session }: { session: any }) {
   }, [myCohortId])
 
   // ─── 핸들러 ────────────────────────────────────────────────
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') setIsInstalled(true)
+    setInstallPrompt(null)
+  }
+
   const saveProfile = async () => {
     if (!obNickname.trim()) return
     setObSaving(true)
@@ -573,6 +599,11 @@ export default function App({ session }: { session: any }) {
     }
     .app{max-width:390px;margin:0 auto;min-height:100vh;background:var(--bg);font-family:'Noto Sans KR',system-ui,sans-serif;color:var(--ink);padding-bottom:100px;}
     .offline{background:#333;color:white;text-align:center;padding:8px;font-size:11px;font-weight:700;}
+    .install-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--black);gap:10px;}
+    .install-bar-txt{font-size:12px;font-weight:700;color:white;line-height:1.4;}
+    .install-bar-sub{font-size:10px;font-weight:400;color:rgba(255,255,255,0.55);display:block;margin-top:1px;}
+    .install-bar-btn{flex-shrink:0;background:white;color:var(--black);border:none;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;}
+    .install-bar-close{flex-shrink:0;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;padding:4px;line-height:1;font-size:16px;}
     .hdr{padding:14px 18px 12px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;background:rgba(247,247,247,0.92);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);}
     .hdr-wm{font-size:17px;font-weight:900;letter-spacing:-0.8px;color:var(--black);}
     .hdr-sub{font-size:10px;color:var(--ink3);margin-top:2px;}
@@ -1328,6 +1359,17 @@ export default function App({ session }: { session: any }) {
             <div className="hdr-chip">Day {challengeDay} / 30</div>
           </div>
         </div>
+
+        {!isInstalled && installPrompt && (
+          <div className="install-bar">
+            <div style={{ flex: 1 }}>
+              <span className="install-bar-txt">앱으로 설치하기</span>
+              <span className="install-bar-sub">홈화면에 추가하면 더 빠르게 접속돼요</span>
+            </div>
+            <button className="install-bar-btn" onClick={handleInstall}>설치</button>
+            <button className="install-bar-close" onClick={() => setInstallPrompt(null)}>✕</button>
+          </div>
+        )}
 
         {tab === 'today' && renderToday()}
         {tab === 'lounge' && renderLounge()}
