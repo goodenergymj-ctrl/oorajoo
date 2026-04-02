@@ -14,54 +14,42 @@ await mkdir(outputDir, { recursive: true })
 function makeSvg(size, padding = 0) {
   const p = padding
   const s = size
-  // 내부 영역 기준으로 좌표 계산 (0~100 단위로 정규화 후 스케일)
-  const sc = (s - p * 2) / 100  // 스케일 팩터
+  const sc = (s - p * 2) / 100
   const x = (v) => p + v * sc
   const y = (v) => p + v * sc
   const radius = (s - p * 2) * 0.22
 
-  // 우상향 그래프 좌표 (0~100 그리드)
-  // 바닥 그리드선
-  const gridY = 72
-  // 꺾은선 포인트: 왼쪽 아래 → 오른쪽 위
-  const linePoints = [
-    [14, 74], [28, 62], [42, 55], [56, 38], [70, 24],
+  // 우상향 도트 (왼쪽 아래 → 오른쪽 위), 텍스트 공간 위해 y 상단 편중
+  const dots = [
+    [18, 72],
+    [34, 58],
+    [50, 44],
+    [66, 30],
+    [82, 16],
   ]
-  // 화살표 끝점
-  const arrowTip  = [82, 14]
-  const arrowLeft = [72, 16]
-  const arrowRight= [80, 26]
+  const dotR = sc * 7.5
 
-  const pts = linePoints.map(([lx, ly]) => `${x(lx)},${y(ly)}`).join(' ')
-  const arrowPath = `M${x(linePoints[linePoints.length-1][0])},${y(linePoints[linePoints.length-1][1])} L${x(arrowTip[0])},${y(arrowTip[1])} L${x(arrowLeft[0])},${y(arrowLeft[1])} M${x(arrowTip[0])},${y(arrowTip[1])} L${x(arrowRight[0])},${y(arrowRight[1])}`
+  const circles = dots.map(([dx, dy]) =>
+    `<circle cx="${x(dx)}" cy="${y(dy)}" r="${dotR}" fill="white"/>`
+  ).join('\n  ')
 
-  // 도트 원
-  const dots = linePoints.map(([lx, ly]) =>
-    `<circle cx="${x(lx)}" cy="${y(ly)}" r="${sc * 3.2}" fill="white"/>`
-  ).join('')
-
-  const strokeW = Math.max(2, sc * 4.5)
+  const fontSize = Math.max(8, sc * 7)
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
   <rect width="${s}" height="${s}" fill="#0A0A0A"/>
   <rect x="${p}" y="${p}" width="${s - p*2}" height="${s - p*2}" rx="${radius}" fill="#0A0A0A"/>
 
-  <!-- 바닥 기준선 -->
-  <line x1="${x(12)}" y1="${y(gridY)}" x2="${x(84)}" y2="${y(gridY)}"
-    stroke="rgba(255,255,255,0.12)" stroke-width="${sc * 1.5}" stroke-linecap="round"/>
+  ${circles}
 
-  <!-- 우상향 꺾은선 -->
-  <polyline points="${pts} ${x(arrowTip[0])},${y(arrowTip[1])}"
-    fill="none" stroke="white" stroke-width="${strokeW}"
-    stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- 화살표 날개 -->
-  <path d="${arrowPath}"
-    fill="none" stroke="white" stroke-width="${strokeW}"
-    stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- 데이터 도트 -->
-  ${dots}
+  <text
+    x="${x(50)}" y="${y(92)}"
+    text-anchor="middle"
+    font-size="${fontSize}"
+    font-family="'Arial', sans-serif"
+    font-weight="600"
+    letter-spacing="${sc * 0.3}"
+    fill="rgba(255,255,255,0.45)"
+  >oorajoo challenge</text>
 </svg>`
 }
 
