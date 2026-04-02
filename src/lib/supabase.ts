@@ -39,6 +39,7 @@ export type FeedItem = {
   cohort_id: number
   gratitude: string
   goal: string
+  question: string | null
   question_answer: string
   is_private: boolean
   created_at: string

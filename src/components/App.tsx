@@ -360,6 +360,7 @@ export default function App({ session }: { session: any }) {
       cohort_id: myCohortId,
       gratitude: myRecord.gratitude,
       goal: myRecord.goal,
+      question: question || null,
       question_answer: myRecord.question_answer,
       is_private: myRecord.is_private,
     })
@@ -810,6 +811,7 @@ export default function App({ session }: { session: any }) {
         </div>
         <div className="fc-q">
           <div className="fc-q-lbl">✦ QUESTION</div>
+          {item.question && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 5 }}>{item.question}</div>}
           <div className="fc-q-txt">{item.question_answer}</div>
         </div>
         {!item.is_private && (
