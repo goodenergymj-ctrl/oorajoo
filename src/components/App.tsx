@@ -27,6 +27,13 @@ const Icon = ({ name, size = 16, color = 'currentColor' }: { name: string; size?
   return icons[name] || null
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+}
+
 const CHEERS = [
   "어차피 오늘도 지나가요. 잘 버티면 그게 이기는 거예요.",
   "아무것도 안 한 것 같아도, 살아낸 거 맞아요.",
@@ -124,6 +131,7 @@ export default function App({ session }: { session: any }) {
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
+  const [pushGranted, setPushGranted] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -282,6 +290,9 @@ export default function App({ session }: { session: any }) {
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('appinstalled', onAppInstalled)
 
+    // 알림 권한 이미 허용된 경우 자동 구독
+    if (Notification.permission === 'granted') setPushGranted(true)
+
     return () => {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
@@ -333,6 +344,35 @@ export default function App({ session }: { session: any }) {
   }, [myCohortId])
 
   // ─── 핸들러 ────────────────────────────────────────────────
+  const subscribePush = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') return
+    setPushGranted(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+      })
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub, userId: session.user.id }),
+      })
+    } catch {}
+  }
+
+  const sendPush = (targetUserId: string, title: string, body: string) => {
+    if (targetUserId === session.user.id) return
+    fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUserId, title, body }),
+    }).catch(() => {})
+  }
+
   const handleInstall = async () => {
     if (!installPrompt) return
     installPrompt.prompt()
@@ -430,6 +470,10 @@ export default function App({ session }: { session: any }) {
     } else {
       const { error } = await supabase.from('reactions').insert({ user_id: session.user.id, target_type: type, target_id: targetId, emoji })
       if (error) return
+      const owner = type === 'feed'
+        ? feed.find(f => f.id === targetId)
+        : lounge.find(p => p.id === targetId)
+      if (owner) sendPush(owner.user_id, `${emoji} 새 반응`, `${profile?.nickname || '누군가'}님이 반응을 남겼어요`)
     }
     setReactions(p => ({ ...p, [key]: !on }))
     loadReactions()
@@ -440,6 +484,8 @@ export default function App({ session }: { session: any }) {
     if (!text) return
     await supabase.from('comments').insert({ user_id: session.user.id, feed_id: feedId, content: text })
     setCommentInput(p => ({ ...p, [feedId]: '' }))
+    const owner = feed.find(f => f.id === feedId)
+    if (owner) sendPush(owner.user_id, '💬 새 댓글', `${profile?.nickname || '누군가'}님이 댓글을 남겼어요`)
     loadFeed()
   }
 
@@ -447,6 +493,8 @@ export default function App({ session }: { session: any }) {
     const text = (loungeCommentInput[loungeId] || '').trim()
     if (!text) return
     await supabase.from('comments').insert({ user_id: session.user.id, lounge_id: loungeId, content: text })
+    const owner = lounge.find(p => p.id === loungeId)
+    if (owner) sendPush(owner.user_id, '💬 새 댓글', `${profile?.nickname || '누군가'}님이 댓글을 남겼어요`)
     setLoungeCommentInput(p => ({ ...p, [loungeId]: '' }))
     loadLounge()
   }
@@ -1300,6 +1348,20 @@ export default function App({ session }: { session: any }) {
             <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>30일 챌린지 Day {challengeDay}</div>
           </div>
           <Icon name="settings" size={16} color="var(--ink3)" />
+        </div>
+      </div>
+      <div className="settings-section">
+        <div className="settings-title">알림</div>
+        <div className="settings-card">
+          <div className="settings-row" onClick={!pushGranted ? subscribePush : undefined} style={{ cursor: pushGranted ? 'default' : 'pointer' }}>
+            <div>
+              <div className="settings-row-label">푸시 알림</div>
+              <div className="settings-row-sub">{pushGranted ? '댓글·반응 알림이 켜져 있어요' : '탭해서 알림 허용하기'}</div>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: pushGranted ? '#16A34A' : 'var(--ink3)' }}>
+              {pushGranted ? '켜짐' : '끄짐'}
+            </div>
+          </div>
         </div>
       </div>
       <div className="settings-section">
