@@ -353,17 +353,24 @@ export default function App({ session }: { session: any }) {
   const subscribePush = async () => {
     try {
       if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return
-      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) return
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') return
       setPushGranted(true)
       const reg = await navigator.serviceWorker.ready
       if (!reg.pushManager) return
+
+      // VAPID 키가 바뀌었으면 기존 구독 해제 후 재구독
+      const storedKey = localStorage.getItem('push_vapid_key')
       const existing = await reg.pushManager.getSubscription()
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
-      })
+      if (existing && storedKey !== vapidKey) await existing.unsubscribe()
+
+      const sub = (!existing || storedKey !== vapidKey)
+        ? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey) })
+        : existing
+
+      localStorage.setItem('push_vapid_key', vapidKey)
       await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
