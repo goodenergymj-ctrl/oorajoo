@@ -1268,7 +1268,6 @@ export default function App({ session }: { session: any }) {
         <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 14 }}>관리자 패널</div>
         <div className="admin-tabs">
           <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
-          <button className={`admin-tab${adminTab === 'cohorts' ? ' on' : ''}`} onClick={() => setAdminTab('cohorts')}>기수관리</button>
         </div>
 
         {adminTab === 'notice' && (<>
@@ -1295,58 +1294,6 @@ export default function App({ session }: { session: any }) {
           )}
         </>)}
 
-        {adminTab === 'cohorts' && (<>
-          {cohorts.map(c => (
-            <div key={c.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 13px', marginBottom: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{c.name}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, background: c.status === 'active' ? 'var(--black)' : 'var(--surface)', color: c.status === 'active' ? 'white' : 'var(--ink3)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                  {c.status === 'active' ? '진행중' : c.status === 'ended' ? '종료' : '예정'}
-                </span>
-              </div>
-              {editingCohort?.id === c.id ? (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 7 }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 7 }}>현재 {cohortCounts[c.id] || 0}명 참여 중</div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>시작일</div>
-                      <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.start_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, start_date: e.target.value } : p)} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>종료일</div>
-                      <input type="date" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.end_date || ''} onChange={e => setEditingCohort(p => p ? { ...p, end_date: e.target.value } : p)} />
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 7 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', marginBottom: 3 }}>모집인원</div>
-                    <input type="number" className="admin-input" style={{ marginBottom: 0, padding: '7px 10px', fontSize: 12 }} value={editingCohort.max_slots || 20} onChange={e => setEditingCohort(p => p ? { ...p, max_slots: Number(e.target.value) } : p)} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-                    {(['upcoming', 'active', 'ended'] as const).map(s => (
-                      <button key={s} onClick={() => setEditingCohort(p => p ? { ...p, status: s } : p)} style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', borderRadius: 8, background: editingCohort.status === s ? 'var(--black)' : 'none', color: editingCohort.status === s ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
-                        {s === 'upcoming' ? '예정' : s === 'active' ? '진행중' : '종료'}
-                      </button>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={saveCohort} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 9, padding: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>저장</button>
-                    <button onClick={() => setEditingCohort(null)} style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--ink2)' }}>취소</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: 'var(--ink3)' }}>{c.start_date || '미설정'} ~ {c.end_date || '미설정'}</span>
-                  <button onClick={() => setEditingCohort({ ...c })} style={{ fontSize: 11, fontWeight: 700, background: 'white', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', color: 'var(--ink2)' }}>설정</button>
-                </div>
-              )}
-            </div>
-          ))}
-          <button onClick={async () => {
-            const n = cohorts.length + 1
-            const { data } = await supabase.from('cohorts').insert({ name: `${n}기`, status: 'upcoming', max_slots: 20, price: 0 }).select().single()
-            if (data) { loadCohorts(); setEditingCohort(data) }
-          }} style={{ width: '100%', background: 'none', border: '1.5px dashed var(--border)', borderRadius: 12, padding: 10, fontSize: 12, fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer', marginTop: 4 }}>+ 새 기수 추가</button>
-        </>)}
       </div>
     </div>
   )
