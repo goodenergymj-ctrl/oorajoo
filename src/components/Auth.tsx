@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const SLIDES = [
@@ -75,12 +75,13 @@ const SLIDES = [
 ]
 
 export default function Auth() {
-  const [onboardingDone, setOnboardingDone] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('oorajoo_onboarding') === 'done'
+  const [onboardingDone, setOnboardingDone] = useState(false)
+
+  useEffect(() => {
+    if (localStorage.getItem('oorajoo_onboarding') === 'done') {
+      setOnboardingDone(true)
     }
-    return false
-  })
+  }, [])
   const [slide, setSlide] = useState(0)
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
   const [email, setEmail] = useState('')
