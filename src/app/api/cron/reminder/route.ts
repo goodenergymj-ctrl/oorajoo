@@ -22,12 +22,11 @@ export async function GET(req: NextRequest) {
     vapidPrivate
   )
 
-  // Current KST time rounded to nearest 5 minutes
+  // Current KST time (exact)
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const hh = now.getUTCHours().toString().padStart(2, '0')
-  const rawMm = now.getUTCMinutes()
-  const roundedMm = Math.round(rawMm / 5) * 5 % 60
-  const matchTime = `${hh}:${roundedMm.toString().padStart(2, '0')}`
+  const mm = now.getUTCMinutes().toString().padStart(2, '0')
+  const matchTime = `${hh}:${mm}`
   const todayKST = now.toISOString().split('T')[0]
 
   const supabase = createClient(

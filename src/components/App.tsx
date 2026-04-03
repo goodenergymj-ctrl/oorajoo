@@ -1453,13 +1453,10 @@ export default function App({ session }: { session: any }) {
                 style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '8px 10px', fontSize: 13, color: notifTime ? 'var(--black)' : 'var(--ink3)', fontFamily: 'inherit', cursor: 'pointer' }}
               >
                 <option value="">설정 안 함</option>
-                {Array.from({ length: 37 }, (_, i) => {
-                  const totalMins = (5 * 60) + i * 30
-                  const h = Math.floor(totalMins / 60).toString().padStart(2, '0')
-                  const m = (totalMins % 60).toString().padStart(2, '0')
-                  const label = `${h}:${m}`
-                  return <option key={label} value={label}>{label}</option>
-                })}
+                <option value="07:00">🌅 07:00 아침</option>
+                <option value="11:30">☀️ 11:30 낮</option>
+                <option value="18:30">🌆 18:30 저녁</option>
+                <option value="21:00">🌙 21:00 밤</option>
               </select>
               {notifTime && (
                 <button onClick={() => saveNotifTime('')} disabled={savingNotif} style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>해제</button>
