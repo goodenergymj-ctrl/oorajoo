@@ -134,6 +134,8 @@ export default function App({ session }: { session: any }) {
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
   const [pushGranted, setPushGranted] = useState(false)
+  const [followings, setFollowings] = useState<Set<string>>(new Set())
+  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -141,6 +143,9 @@ export default function App({ session }: { session: any }) {
   const isEnded = myCohort?.status === 'ended'
   const isAdmin = profile?.is_admin || false
   const myFeed = feed.filter(f => f.cohort_id === myCohortId)
+  const displayFeed = feedFilter === 'following' && followings.size > 0
+    ? myFeed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
+    : myFeed
 
   const challengeStartDate = new Date(profile?.challenge_started_at || profile?.created_at || new Date())
   const rawChallengeDay = Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -244,6 +249,11 @@ export default function App({ session }: { session: any }) {
     if (data) setPendingMembers(data)
   }
 
+  const loadFollowings = async () => {
+    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
+    if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
+  }
+
   const fetchQuestion = async () => {
     setQLoading(true)
     try {
@@ -261,6 +271,7 @@ export default function App({ session }: { session: any }) {
     loadCohorts()
     loadCohortCounts()
     loadCohortMembers()
+    loadFollowings()
     fetchQuestion()
     const onOnline = () => setIsOnline(true)
     const onOffline = () => setIsOnline(false)
@@ -388,6 +399,17 @@ export default function App({ session }: { session: any }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetUserId, title, body }),
     }).catch(() => {})
+  }
+
+  const toggleFollow = async (userId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (followings.has(userId)) {
+      await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
+      setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
+    } else {
+      await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
+      setFollowings(prev => new Set([...prev, userId]))
+    }
   }
 
   const handleInstall = async () => {
@@ -1076,12 +1098,22 @@ export default function App({ session }: { session: any }) {
 
       <div className="sec-label">
         {isEnded ? '지난 기록 보관함' : '멤버들의 오늘'}
-        <span className="sec-sub">{myFeed.length}개</span>
+        <span className="sec-sub">{displayFeed.length}개</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          {(['all', 'following'] as const).map(f => (
+            <button key={f} onClick={() => setFeedFilter(f)} style={{ fontSize: 10, fontWeight: 700, border: '1.5px solid', borderColor: feedFilter === f ? 'var(--black)' : 'var(--border)', borderRadius: 20, padding: '3px 9px', background: feedFilter === f ? 'var(--black)' : 'transparent', color: feedFilter === f ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
+              {f === 'all' ? '전체' : '팔로잉'}
+            </button>
+          ))}
+        </div>
       </div>
-      {myFeed.map((item, index) => (
+      {feedFilter === 'following' && followings.size === 0 && (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>팔로우한 멤버가 없어요. 그룹 탭에서 팔로우해보세요!</div>
+      )}
+      {displayFeed.map((item, index) => (
         <div key={item.id}>
           {renderFeedCard(item)}
-          {(index + 1) % 3 === 0 && index !== myFeed.length - 1 && (
+          {(index + 1) % 3 === 0 && index !== displayFeed.length - 1 && (
             <AdBanner adUnitId="DAN-XXXXXXXXXX" width={320} height={50} />
           )}
         </div>
@@ -1357,7 +1389,10 @@ export default function App({ session }: { session: any }) {
               </div>
               <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥</div>
             </div>
-            {m.id === session.user.id && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>}
+            {m.id === session.user.id
+              ? <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>
+              : <button onClick={e => toggleFollow(m.id, e)} style={{ fontSize: 11, fontWeight: 700, border: followings.has(m.id) ? '1.5px solid var(--border)' : '1.5px solid var(--black)', borderRadius: 20, padding: '4px 11px', background: followings.has(m.id) ? 'var(--surface)' : 'var(--black)', color: followings.has(m.id) ? 'var(--ink2)' : 'white', cursor: 'pointer', flexShrink: 0 }}>{followings.has(m.id) ? '팔로잉' : '+ 팔로우'}</button>
+            }
           </div>
           {m.intro && <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7, marginBottom: 6 }}>{m.intro}</div>}
           {(m.tags || []).length > 0 && (
