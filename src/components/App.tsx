@@ -332,6 +332,7 @@ export default function App({ session }: { session: any }) {
       checkTodaySubmitted()
       loadReactions()
       loadCohortMembers()
+      loadFollowings()
     }
   }, [myCohortId])
 
@@ -407,11 +408,12 @@ export default function App({ session }: { session: any }) {
   const toggleFollow = async (userId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     if (followings.has(userId)) {
-      await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
-      setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
+      const { error } = await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
+      if (!error) setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
     } else {
-      await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
-      setFollowings(prev => new Set([...prev, userId]))
+      const { error } = await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
+      if (!error) setFollowings(prev => new Set([...prev, userId]))
+      else await loadFollowings()
     }
   }
 
