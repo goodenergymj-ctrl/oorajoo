@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 
 export async function GET(req: NextRequest) {
-  // Accept secret via Authorization header or query param
   const auth = req.headers.get('authorization') || ''
   const querySecret = new URL(req.url).searchParams.get('secret') || ''
   const cronSecret = process.env.CRON_SECRET
@@ -22,11 +21,11 @@ export async function GET(req: NextRequest) {
     vapidPrivate
   )
 
-  // Current KST time (exact)
+  // Current KST time
   const now = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const hh = now.getUTCHours().toString().padStart(2, '0')
   const mm = now.getUTCMinutes().toString().padStart(2, '0')
-  const matchTime = `${hh}:${mm}`
+  const currentTime = `${hh}:${mm}`
   const todayKST = now.toISOString().split('T')[0]
 
   const supabase = createClient(
@@ -34,15 +33,20 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Find users whose notification_time matches now and haven't been notified today
-  const { data: users } = await supabase
+  // Find users whose preferred time has already passed (≤ now) and haven't recorded today
+  const { data: candidates } = await supabase
     .from('profiles')
     .select('id, nickname, notification_time')
-    .eq('notification_time', matchTime)
     .not('notification_time', 'is', null)
 
-  if (!users || users.length === 0) {
-    return NextResponse.json({ sent: 0, time: matchTime })
+  if (!candidates || candidates.length === 0) {
+    return NextResponse.json({ sent: 0, time: currentTime })
+  }
+
+  // Filter: notification_time <= currentTime
+  const eligible = candidates.filter((u: any) => u.notification_time <= currentTime)
+  if (eligible.length === 0) {
+    return NextResponse.json({ sent: 0, time: currentTime })
   }
 
   // Exclude users who already submitted today's record
@@ -50,10 +54,10 @@ export async function GET(req: NextRequest) {
     .from('feed')
     .select('user_id')
     .gte('created_at', `${todayKST}T00:00:00+09:00`)
-    .in('user_id', users.map((u: any) => u.id))
+    .in('user_id', eligible.map((u: any) => u.id))
 
   const submittedIds = new Set((todayFeed || []).map((f: any) => f.user_id))
-  const toNotify = users.filter((u: any) => !submittedIds.has(u.id))
+  const toNotify = eligible.filter((u: any) => !submittedIds.has(u.id))
 
   let sent = 0
   for (const user of toNotify) {
@@ -75,9 +79,7 @@ export async function GET(req: NextRequest) {
         sent++
       } catch {}
     }
-
-    await supabase.from('profiles').update({ notif_last_date: todayKST }).eq('id', user.id)
   }
 
-  return NextResponse.json({ sent, time: matchTime, checked: users.length })
+  return NextResponse.json({ sent, time: currentTime, checked: eligible.length })
 }

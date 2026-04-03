@@ -450,6 +450,7 @@ export default function App({ session }: { session: any }) {
         naver_blog: obNaver.trim() || null,
         is_approved: true,
         cohort_id: activeCohort?.id || null,
+        notification_time: notifTime || null,
       }).eq('id', session.user.id)
       error = result.error
     } else {
@@ -465,6 +466,7 @@ export default function App({ session }: { session: any }) {
         cohort_id: activeCohort?.id || null,
         color: ['#1A1A1A', '#2D4A7A', '#5C3D7A', '#7A3D3D', '#2D6B4A', '#6B4A2D', '#3D5C7A', '#7A5C2D'][Math.floor(Math.random() * 8)],
         tags: [],
+        notification_time: notifTime || null,
         streak: 0,
       })
       error = result.error
@@ -908,6 +910,33 @@ export default function App({ session }: { session: any }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>N</div>
             <input className="ob-input" style={{ fontSize: 13, padding: '10px 13px' }} placeholder="네이버 블로그 ID" value={obNaver} onChange={e => setObNaver(e.target.value)} />
+          </div>
+
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>매일 기록 알림 시간</div>
+          <div style={{ fontSize: 11, color: '#bbb', marginBottom: 12 }}>선택한 시간부터 기록 안 하면 최대 4번 리마인더가 와요</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 28 }}>
+            {[
+              { time: '07:00', label: '🌅 오전 7시' },
+              { time: '11:30', label: '☀️ 오전 11시 반' },
+              { time: '18:30', label: '🌆 오후 6시 반' },
+              { time: '21:00', label: '🌙 밤 9시' },
+            ].map(({ time, label }) => (
+              <button
+                key={time}
+                type="button"
+                onClick={() => setNotifTime(t => t === time ? '' : time)}
+                style={{ flex: '1 0 calc(50% - 4px)', padding: '12px 8px', borderRadius: 14, border: notifTime === time ? '2px solid #0A0A0A' : '1.5px solid #E0E0E0', background: notifTime === time ? '#0A0A0A' : 'white', color: notifTime === time ? 'white' : '#666', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setNotifTime('')}
+              style={{ flex: '1 0 100%', padding: '10px', borderRadius: 14, border: notifTime === '' ? '2px solid #0A0A0A' : '1.5px solid #E0E0E0', background: notifTime === '' ? '#0A0A0A' : 'white', color: notifTime === '' ? 'white' : '#999', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              알림 없음
+            </button>
           </div>
 
           <button className="ob-btn" onClick={saveProfile} disabled={!obNickname.trim() || obSaving}>
@@ -1446,21 +1475,17 @@ export default function App({ session }: { session: any }) {
               <div className="settings-row-sub">{notifTime ? `매일 ${notifTime}에 기록 리마인더가 와요` : '원하는 시간에 리마인더를 받아보세요'}</div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
-              <select
-                value={notifTime}
-                onChange={e => saveNotifTime(e.target.value)}
-                disabled={savingNotif}
-                style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '8px 10px', fontSize: 13, color: notifTime ? 'var(--black)' : 'var(--ink3)', fontFamily: 'inherit', cursor: 'pointer' }}
-              >
-                <option value="">설정 안 함</option>
-                <option value="07:00">🌅 07:00 아침</option>
-                <option value="11:30">☀️ 11:30 낮</option>
-                <option value="18:30">🌆 18:30 저녁</option>
-                <option value="21:00">🌙 21:00 밤</option>
-              </select>
-              {notifTime && (
-                <button onClick={() => saveNotifTime('')} disabled={savingNotif} style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>해제</button>
-              )}
+              {[
+                { time: '07:00', label: '🌅 7시' },
+                { time: '11:30', label: '☀️ 11:30' },
+                { time: '18:30', label: '🌆 18:30' },
+                { time: '21:00', label: '🌙 9시' },
+              ].map(({ time, label }) => (
+                <button key={time} onClick={() => saveNotifTime(notifTime === time ? '' : time)} disabled={savingNotif}
+                  style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: notifTime === time ? '2px solid var(--black)' : '1.5px solid var(--border)', background: notifTime === time ? 'var(--black)' : 'transparent', color: notifTime === time ? 'white' : 'var(--ink2)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
