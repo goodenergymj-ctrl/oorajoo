@@ -136,6 +136,8 @@ export default function App({ session }: { session: any }) {
   const [pushGranted, setPushGranted] = useState(false)
   const [followings, setFollowings] = useState<Set<string>>(new Set())
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
+  const [notifTime, setNotifTime] = useState<string>('')
+  const [savingNotif, setSavingNotif] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -318,6 +320,7 @@ export default function App({ session }: { session: any }) {
   useEffect(() => {
     if (profileLoaded && profile?.nickname) {
       subscribePush().catch(() => {})
+      setNotifTime(profile.notification_time || '')
     }
   }, [profileLoaded])
 
@@ -410,6 +413,14 @@ export default function App({ session }: { session: any }) {
       await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
       setFollowings(prev => new Set([...prev, userId]))
     }
+  }
+
+  const saveNotifTime = async (time: string) => {
+    setSavingNotif(true)
+    setNotifTime(time)
+    await supabase.from('profiles').update({ notification_time: time || null }).eq('id', session.user.id)
+    setSavingNotif(false)
+    showToast(time ? `⏰ ${time}에 기록 알림을 보내드릴게요!` : '알림 시간이 해제됐어요')
   }
 
   const handleInstall = async () => {
@@ -1427,6 +1438,32 @@ export default function App({ session }: { session: any }) {
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: pushGranted ? '#16A34A' : 'var(--ink3)' }}>
               {pushGranted ? '켜짐' : '꺼짐'}
+            </div>
+          </div>
+          <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+            <div>
+              <div className="settings-row-label">매일 기록 알림</div>
+              <div className="settings-row-sub">{notifTime ? `매일 ${notifTime}에 기록 리마인더가 와요` : '원하는 시간에 리마인더를 받아보세요'}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
+              <select
+                value={notifTime}
+                onChange={e => saveNotifTime(e.target.value)}
+                disabled={savingNotif}
+                style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '8px 10px', fontSize: 13, color: notifTime ? 'var(--black)' : 'var(--ink3)', fontFamily: 'inherit', cursor: 'pointer' }}
+              >
+                <option value="">설정 안 함</option>
+                {Array.from({ length: 37 }, (_, i) => {
+                  const totalMins = (5 * 60) + i * 30
+                  const h = Math.floor(totalMins / 60).toString().padStart(2, '0')
+                  const m = (totalMins % 60).toString().padStart(2, '0')
+                  const label = `${h}:${m}`
+                  return <option key={label} value={label}>{label}</option>
+                })}
+              </select>
+              {notifTime && (
+                <button onClick={() => saveNotifTime('')} disabled={savingNotif} style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>해제</button>
+              )}
             </div>
           </div>
         </div>

@@ -21,6 +21,7 @@ export type Profile = {
   created_at: string
   challenge_started_at: string | null
   challenge_round: number
+  notification_time: string | null
 }
 
 export type Cohort = {
