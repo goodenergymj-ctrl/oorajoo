@@ -128,6 +128,8 @@ export default function App({ session }: { session: any }) {
   const [editingFeedItem, setEditingFeedItem] = useState<{ id: number; gratitude: string; goal: string; question_answer: string } | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [posting, setPosting] = useState(false)
+  const [aiCheer, setAiCheer] = useState('')
+  const [cheerLoading, setCheerLoading] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
@@ -457,6 +459,17 @@ export default function App({ session }: { session: any }) {
     if (!error) {
       setSubmitted(true)
       loadFeed()
+      // 개인 맞춤 격려 문구 생성
+      setCheerLoading(true)
+      fetch('/api/cheer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gratitude: myRecord.gratitude,
+          goal: myRecord.goal,
+          answer: myRecord.question_answer,
+        }),
+      }).then(r => r.json()).then(d => setAiCheer(d.cheer || '')).catch(() => {}).finally(() => setCheerLoading(false))
       // streak 업데이트
       const today = getKSTDateString()
       const todayKST = new Date(today + 'T00:00:00+09:00')
@@ -1011,7 +1024,11 @@ export default function App({ session }: { session: any }) {
                 <div className="wc-done">
                   <div className="wc-done-icon"><Icon name="check" size={22} color="var(--black)" /></div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>공유 완료!</div>
-                  <div className="wc-done-cheer">{cheerMsg}</div>
+                  <div className="wc-done-cheer">
+                    {cheerLoading ? (
+                      <span style={{ color: 'var(--ink3)' }}>응원 문구 생성 중...</span>
+                    ) : (aiCheer || cheerMsg)}
+                  </div>
                 </div>
               ) : (
                 <>
