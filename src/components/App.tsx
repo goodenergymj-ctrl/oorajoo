@@ -159,6 +159,9 @@ export default function App({ session }: { session: any }) {
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
   const [pushGranted, setPushGranted] = useState(false)
+  const [followings, setFollowings] = useState<Set<string>>(new Set())
+  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
+  const [members, setMembers] = useState<Profile[]>([])
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
@@ -170,6 +173,9 @@ export default function App({ session }: { session: any }) {
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
+  const displayFeed = feedFilter === 'following' && followings.size > 0
+    ? feed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
+    : feed
 
   const challengeStartDate = new Date(profile?.challenge_started_at || profile?.created_at || new Date())
   const rawChallengeDay = Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -258,6 +264,20 @@ export default function App({ session }: { session: any }) {
       .select('user_id')
       .gte('created_at', today + 'T00:00:00+09:00')
     if (data) setTodayCompletionCount(new Set(data.map((d: any) => d.user_id)).size)
+  }
+
+  const loadMembers = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .not('nickname', 'is', null)
+      .order('streak', { ascending: false })
+    if (data) setMembers(data as Profile[])
+  }
+
+  const loadFollowings = async () => {
+    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
+    if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
   }
 
   const loadWeeklyStats = async () => {
@@ -364,6 +384,8 @@ export default function App({ session }: { session: any }) {
     loadNotice()
     loadReactions()
     loadTodayCompletion()
+    loadMembers()
+    loadFollowings()
     checkTodaySubmitted()
     loadWeeklyStats()
   }, [])
@@ -432,6 +454,18 @@ export default function App({ session }: { session: any }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetUserId, title, body }),
     }).catch(() => {})
+  }
+
+  const toggleFollow = async (userId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (followings.has(userId)) {
+      const { error } = await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
+      if (!error) setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
+    } else {
+      const { error } = await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
+      if (!error) setFollowings(prev => new Set([...prev, userId]))
+      else loadFollowings()
+    }
   }
 
   const saveNotifTime = async (time: string) => {
@@ -1224,12 +1258,22 @@ export default function App({ session }: { session: any }) {
 
       <div className="sec-label">
         멤버들의 오늘
-        <span className="sec-sub">{feed.length}개</span>
+        <span className="sec-sub">{displayFeed.length}개</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          {(['all', 'following'] as const).map(f => (
+            <button key={f} onClick={() => setFeedFilter(f)} style={{ fontSize: 10, fontWeight: 700, border: '1.5px solid', borderColor: feedFilter === f ? 'var(--black)' : 'var(--border)', borderRadius: 20, padding: '3px 9px', background: feedFilter === f ? 'var(--black)' : 'transparent', color: feedFilter === f ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
+              {f === 'all' ? '전체' : '팔로잉'}
+            </button>
+          ))}
+        </div>
       </div>
-      {feed.map((item, index) => (
+      {feedFilter === 'following' && followings.size === 0 && (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>멤버 탭에서 팔로우하면 여기서 따로 볼 수 있어요</div>
+      )}
+      {displayFeed.map((item, index) => (
         <div key={item.id}>
           {renderFeedCard(item)}
-          {(index + 1) % 3 === 0 && index !== feed.length - 1 && (
+          {(index + 1) % 3 === 0 && index !== displayFeed.length - 1 && (
             <AdBanner adUnitId="DAN-XXXXXXXXXX" width={320} height={50} />
           )}
         </div>
@@ -1553,6 +1597,116 @@ export default function App({ session }: { session: any }) {
     )
   }
 
+  const renderMembers = () => {
+    const today = getKSTDateString()
+
+    // 달성률 계산: total_days / 챌린지 경과일(최대 30) * 100
+    const getRate = (m: Profile) => {
+      const start = new Date(m.challenge_started_at || m.created_at)
+      const elapsed = Math.max(1, Math.min(30, Math.floor((Date.now() - start.getTime()) / 86400000) + 1))
+      return Math.round(((m.total_days || 0) / elapsed) * 100)
+    }
+
+    const ranked = [...members].sort((a, b) => getRate(b) - getRate(a))
+    const todayDoneIds = new Set(
+      feed.filter(f => f.created_at >= today + 'T00:00:00+09:00').map(f => f.user_id)
+    )
+
+    return (
+      <>
+        {/* 달성률 랭킹 TOP */}
+        <div style={{ margin: '16px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '18px 16px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', textTransform: 'uppercase' as const, marginBottom: 10 }}>달성률 랭킹</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 14 }}>시작일 기준 달성% · 모두가 공정하게 비교돼요</div>
+          {ranked.slice(0, 5).map((m, i) => {
+            const rate = getRate(m)
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+            return (
+              <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < 4 ? 10 : 0, cursor: 'pointer' }}>
+                <div style={{ width: 22, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
+                  {medal || <span style={{ fontSize: 12, fontWeight: 900, color: 'rgba(255,255,255,0.4)' }}>{i + 1}</span>}
+                </div>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: 'white', flexShrink: 0 }}>
+                  {m.nickname?.[0]}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'white', marginBottom: 3 }}>{m.nickname}</div>
+                  <div style={{ height: 4, background: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: rate >= 80 ? '#4ADE80' : rate >= 50 ? '#FACC15' : '#F87171', borderRadius: 2, width: `${rate}%`, transition: 'width 0.5s' }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: rate >= 80 ? '#4ADE80' : rate >= 50 ? '#FACC15' : '#F87171', flexShrink: 0 }}>{rate}%</div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 스트릭 TOP 3 */}
+        <div style={{ margin: '10px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '15px' }}>
+          <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>🔥 연속 스트릭 TOP 3</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[...members].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 3).map((m, i) => (
+              <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ flex: 1, background: 'var(--surface)', borderRadius: 12, padding: '10px 8px', textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: 'white', margin: '0 auto 6px' }}>{m.nickname?.[0]}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{m.streak || 0}일</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 멤버 전체 목록 */}
+        <div className="sec-label">
+          전체 멤버<span className="sec-sub">{members.length}명</span>
+        </div>
+        {members.map(m => {
+          const rate = getRate(m)
+          const doneToday = todayDoneIds.has(m.id)
+          const isMe = m.id === session.user.id
+          const isFollowing = followings.has(m.id)
+          return (
+            <div key={m.id} style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '13px 14px', margin: '0 16px 8px', cursor: 'pointer' }} onClick={() => setSelectedProfile(m)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 13, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 900, color: 'white', border: doneToday ? '2.5px solid var(--black)' : '2px solid transparent' }}>
+                    {m.nickname?.[0] || '?'}
+                  </div>
+                  {doneToday && <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 10, lineHeight: 1 }}>✅</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</span>
+                    {(m.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '1px 6px', borderRadius: 20 }}>{m.challenge_round}R</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{m.streak || 0}일 🔥</span>
+                    <div style={{ flex: 1, height: 3, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden', maxWidth: 80 }}>
+                      <div style={{ height: '100%', background: rate >= 80 ? '#16A34A' : rate >= 50 ? '#CA8A04' : 'var(--border2)', width: `${rate}%` }} />
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)' }}>{rate}%</span>
+                  </div>
+                </div>
+                {isMe ? (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, flexShrink: 0 }}>나</span>
+                ) : (
+                  <button
+                    onClick={e => toggleFollow(m.id, e)}
+                    style={{ fontSize: 11, fontWeight: 700, border: isFollowing ? '1.5px solid var(--border)' : '1.5px solid var(--black)', borderRadius: 20, padding: '5px 12px', background: isFollowing ? 'var(--surface)' : 'var(--black)', color: isFollowing ? 'var(--ink2)' : 'white', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    {isFollowing ? '팔로잉' : '+ 팔로우'}
+                  </button>
+                )}
+              </div>
+              {m.intro && <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 7, paddingLeft: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.intro}</div>}
+            </div>
+          )
+        })}
+        <div style={{ height: 16 }} />
+      </>
+    )
+  }
+
   const renderSettings = () => (
     <>
       <div style={{ padding: '18px 16px 0' }}>
@@ -1702,10 +1856,11 @@ export default function App({ session }: { session: any }) {
         {tab === 'today' && renderToday()}
         {tab === 'lounge' && renderLounge()}
         {tab === 'record' && renderRecord()}
+        {tab === 'members' && renderMembers()}
         {tab === 'settings' && renderSettings()}
 
         <div className="tab-bar">
-          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
+          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['members', 'users', '멤버'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>
               <Icon name={icon} size={17} color={tab === k ? 'white' : 'var(--ink3)'} />
               <span>{label}</span>
