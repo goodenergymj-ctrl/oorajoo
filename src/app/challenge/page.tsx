@@ -11,20 +11,28 @@ const css = `
   button{cursor:pointer;}
   body{background:#F7F7F7;font-family:'Noto Sans KR',system-ui,sans-serif;}
   .page{max-width:390px;margin:0 auto;min-height:100vh;background:#F7F7F7;}
-  .hero{background:#0A0A0A;padding:56px 24px 48px;position:relative;overflow:hidden;}
+  .hero{background:#0A0A0A;padding:56px 24px 52px;position:relative;overflow:hidden;}
   .hero-blob1{position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,0.03);}
   .hero-blob2{position:absolute;bottom:-60px;left:-30px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,0.02);}
-  .hero-label{font-size:10px;font-weight:700;color:rgba(255,255,255,0.35);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:14px;}
-  .hero-title{font-size:34px;font-weight:900;color:white;letter-spacing:-1px;line-height:1.15;margin-bottom:10px;}
-  .hero-sub{font-size:15px;font-weight:700;color:rgba(255,255,255,0.7);margin-bottom:10px;}
-  .hero-desc{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.75;}
+  .hero-eyebrow{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.6);letter-spacing:0.5px;margin-bottom:20px;}
+  .hero-dot{width:6px;height:6px;border-radius:50%;background:#4ADE80;box-shadow:0 0 0 3px rgba(74,222,128,0.25);}
+  .hero-title{font-size:30px;font-weight:900;color:white;letter-spacing:-0.5px;line-height:1.2;margin-bottom:14px;}
+  .hero-title em{font-style:normal;color:#4ADE80;}
+  .hero-desc{font-size:14px;color:rgba(255,255,255,0.55);line-height:1.75;margin-bottom:24px;}
+  .hero-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .hero-badge{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:5px 12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);}
   .section{padding:28px 18px 0;}
-  .section-title{font-size:11px;font-weight:700;color:#999;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;}
+  .section-title{font-size:10px;font-weight:700;color:#999;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;}
   .feature-grid{display:flex;flex-direction:column;gap:10px;}
-  .feature-card{background:white;border:1px solid #E0E0E0;border-radius:16px;padding:16px 18px;display:flex;align-items:flex-start;gap:13px;}
-  .feature-icon{font-size:22px;flex-shrink:0;margin-top:1px;}
-  .feature-title{font-size:14px;font-weight:900;color:#0A0A0A;margin-bottom:3px;}
-  .feature-desc{font-size:12px;color:#555;line-height:1.6;}
+  .feature-card{background:white;border:1px solid #E0E0E0;border-radius:16px;padding:18px 18px;display:flex;align-items:flex-start;gap:14px;}
+  .feature-icon{font-size:24px;flex-shrink:0;margin-top:1px;}
+  .feature-title{font-size:14px;font-weight:900;color:#0A0A0A;margin-bottom:4px;}
+  .feature-desc{font-size:12.5px;color:#555;line-height:1.65;}
+  .schedule-card{background:white;border:1px solid #E0E0E0;border-radius:16px;overflow:hidden;}
+  .schedule-row{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid #F0F0F0;}
+  .schedule-row:last-child{border-bottom:none;}
+  .schedule-label{font-size:12px;font-weight:700;color:#999;flex:1;}
+  .schedule-value{font-size:13px;font-weight:900;color:#0A0A0A;}
   .cohort-card{background:white;border:1px solid #E0E0E0;border-radius:18px;overflow:hidden;margin-top:0;}
   .cohort-header{background:#0A0A0A;padding:16px 18px;display:flex;align-items:center;gap:8px;}
   .cohort-dot{width:8px;height:8px;border-radius:50%;background:#4ADE80;box-shadow:0 0 0 3px rgba(74,222,128,0.25);flex-shrink:0;}
@@ -38,6 +46,9 @@ const css = `
   .empty-title{font-size:15px;font-weight:900;color:#0A0A0A;margin-bottom:6px;}
   .empty-desc{font-size:13px;color:#999;line-height:1.65;margin-bottom:18px;}
   .notify-btn{display:inline-flex;align-items:center;gap:6px;background:#0A0A0A;color:white;border:none;border-radius:20px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;}
+  .closing{background:#0A0A0A;margin:24px 18px;border-radius:18px;padding:28px 22px;text-align:center;}
+  .closing-text{font-size:17px;font-weight:900;color:white;line-height:1.4;margin-bottom:6px;}
+  .closing-sub{font-size:12px;color:rgba(255,255,255,0.4);}
   .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:flex-end;justify-content:center;z-index:100;backdrop-filter:blur(4px);}
   .modal{background:white;border-radius:24px 24px 0 0;padding:22px 20px 44px;width:100%;max-width:390px;max-height:90vh;overflow-y:auto;}
   .modal-handle{width:32px;height:3px;background:#C8C8C8;border-radius:4px;margin:0 auto 20px;}
@@ -121,21 +132,32 @@ export default function ChallengePage() {
           <div className="hero-blob1" />
           <div className="hero-blob2" />
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <div className="hero-label">OORAJOO CHALLENGE</div>
-            <div className="hero-title">우라주<br />챌린지</div>
-            <div className="hero-sub">30일, 함께 성장하는 기록 챌린지</div>
-            <div className="hero-desc">매일 감사·목표·질문에 답하며<br />30일을 함께 완주해요</div>
+            <div className="hero-eyebrow">
+              <span className="hero-dot" />
+              모집 중
+            </div>
+            <div className="hero-title">30일 동안<br /><em>우상향 라이프</em>를<br />함께 만들어요</div>
+            <div className="hero-desc">
+              매일 감사와 목표를 기록하고<br />
+              좋은 동료들과 함께 성장하는<br />
+              소수 정예 30일 챌린지
+            </div>
+            <div className="hero-meta">
+              <span className="hero-badge">소수 정예 12명</span>
+              <span className="hero-badge">무료</span>
+            </div>
           </div>
         </div>
 
-        {/* ② 챌린지 소개 */}
+        {/* ② WHAT YOU GET */}
         <div className="section">
-          <div className="section-title">이런 챌린지예요</div>
+          <div className="section-title">What You Get</div>
           <div className="feature-grid">
             {[
-              { icon: '📝', title: '매일 기록', desc: '감사·목표·AI 질문에 매일 답하며 하루를 의미있게 마무리해요' },
-              { icon: '🤝', title: '함께 완주', desc: '기수원들과 서로 응원하며 30일을 함께 달려요' },
-              { icon: '🎯', title: '코치와 함께', desc: '민지 코치가 직접 리드하며 꾸준함을 지켜봐줘요' },
+              { icon: '📝', title: '하루의 시작과 마무리', desc: '감사 한 줄, 목표 한 줄. 작지만 강력한 루틴을 만들어요.' },
+              { icon: '✨', title: '미래지향적 AI 질문', desc: '매일 달라지는 우상향 질문으로 더 나은 나를 발견해요.' },
+              { icon: '🤝', title: '소수 정예 동료들', desc: '12명의 진심 어린 멤버들과 서로 자극하고 응원해요.' },
+              { icon: '🎯', title: '전문 코치의 코칭 타임', desc: '필요할 때 전문 코치이자 버크만 디브리퍼 우라주 코치와 함께해요.' },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="feature-card">
                 <span className="feature-icon">{icon}</span>
@@ -164,7 +186,7 @@ export default function ChallengePage() {
                   <div className="cohort-name">{cohort.title || `${cohort.id}기`}</div>
                   <div className="cohort-meta">
                     {cohort.description && <>{cohort.description}<br /></>}
-                    30일 챌린지 · 소수 정예
+                    소수 정예 12명 · 무료
                     {cohort.start_date && <> · {new Date(cohort.start_date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 시작</>}
                   </div>
                   <button className="apply-btn" onClick={() => openApply(cohort)}>
@@ -185,16 +207,22 @@ export default function ChallengePage() {
           )}
         </div>
 
-        <div className="footer">우라주 챌린지 · © 2025 OorajoO</div>
+        {/* ④ 클로징 */}
+        <div className="closing">
+          <div className="closing-text">진정한 우상향 라이프,<br />함께 시작해요 🌿</div>
+          <div className="closing-sub">우라주 챌린지와 함께라면 달라질 수 있어요</div>
+        </div>
+
+        <div className="footer">© 2025 우라주 · oorajoo.kr</div>
       </div>
 
-      {/* ④ 신청 모달 */}
+      {/* ⑤ 신청 모달 */}
       {showModal && (
         <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
           <div className="modal">
             <div className="modal-handle" />
             {done ? (
-              /* ⑤ 신청 완료 */
+              /* ⑥ 신청 완료 */
               <div className="done-wrap">
                 <div className="done-icon">🌿</div>
                 <div className="done-title">신청 완료!</div>
@@ -207,7 +235,7 @@ export default function ChallengePage() {
             ) : (
               <>
                 <div className="modal-title">기수 신청하기</div>
-                <div className="modal-sub">{selectedCohort?.title || `${selectedCohort?.id}기`} · 30일 챌린지</div>
+                <div className="modal-sub">{selectedCohort?.title || `${selectedCohort?.id}기`} · 소수 정예 30일 챌린지</div>
 
                 {!session ? (
                   <>
