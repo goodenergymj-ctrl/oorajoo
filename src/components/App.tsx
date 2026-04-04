@@ -1666,10 +1666,37 @@ export default function App({ session }: { session: any }) {
       if (!byCohort[key]) byCohort[key] = []
       byCohort[key].push(m)
     })
+    const standaloneMembers = cohortMembers.filter(m => !m.cohort_id)
     const todayStr = getKSTDateString()
+    const recruitingCohort = cohorts.find(c => c.is_recruiting)
+    const showCTA = !isAdmin && !profile?.cohort_id && !!recruitingCohort
+
+    const renderMemberCard = (m: Profile, accentColor: string) => {
+      const doneToday = feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
+      return (
+        <div key={m.id} onClick={() => setSelectedProfile(m)}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 11, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: 'white', border: doneToday ? `2.5px solid ${accentColor}` : '2px solid transparent' }}>
+              {m.nickname?.[0] || '?'}
+            </div>
+            {doneToday && <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 10, lineHeight: 1 }}>✅</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</div>
+            {m.intro
+              ? <div style={{ fontSize: 11, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.intro}</div>
+              : <div style={{ fontSize: 11, color: 'var(--border2)' }}>소개 없음</div>
+            }
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', flexShrink: 0 }}>{m.streak || 0}일 🔥</div>
+        </div>
+      )
+    }
 
     return (
       <>
+        {/* 히어로 배너 */}
         <div style={{ margin: '16px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '20px', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: -20, right: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
           <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', textTransform: 'uppercase' as const, marginBottom: 4 }}>OORAJOO CHALLENGE</div>
@@ -1679,64 +1706,7 @@ export default function App({ session }: { session: any }) {
           </div>
         </div>
 
-        {cohorts.map(cohort => {
-          const members = byCohort[String(cohort.id)] || []
-          if (members.length === 0) return null
-          const color = cohortColors[(cohort.id - 1) % cohortColors.length]
-          const completedToday = members.filter(m =>
-            feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
-          ).length
-
-          return (
-            <div key={cohort.id} style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
-              <div style={{ background: color, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>{cohort.title || `${cohort.id}기`}</span>
-                    {cohort.is_open && <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: 'white', padding: '2px 7px', borderRadius: 20 }}>상시</span>}
-                  </div>
-                  {cohort.description && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cohort.description}</div>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{members.length}명</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>오늘 {completedToday}명 완료</div>
-                </div>
-              </div>
-              <div style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
-                <div style={{ height: '100%', background: color, transition: 'width 0.5s', width: members.length > 0 ? `${(completedToday / members.length) * 100}%` : '0%' }} />
-              </div>
-              <div style={{ padding: '12px 14px' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {members.map(m => {
-                    const doneToday = feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
-                    return (
-                      <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: 48 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 13, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 900, color: 'white', border: doneToday ? `2.5px solid ${color}` : '2px solid transparent', boxShadow: doneToday ? '0 0 0 1px white' : 'none' }}>
-                          {m.nickname?.[0] || '?'}
-                        </div>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink2)', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                          {m.nickname}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-                {cohort.is_recruiting && (
-                  <div style={{ marginTop: 12, background: 'var(--surface)', borderRadius: 10, padding: '10px 13px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>🎉 지금 모집 중이에요!</div>
-                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>함께 30일 챌린지 도전해봐요</div>
-                    </div>
-                    {cohort.recruit_link && (
-                      <a href={cohort.recruit_link} target="_blank" rel="noreferrer" style={{ background: color, color: 'white', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, textDecoration: 'none', flexShrink: 0 }}>신청하기</a>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-
+        {/* 스트릭 TOP5 */}
         <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '15px', boxShadow: 'var(--sh)' }}>
           <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 12 }}>🏆 스트릭 TOP 5</div>
           {[...cohortMembers].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 5).map((m, i) => (
@@ -1761,6 +1731,90 @@ export default function App({ session }: { session: any }) {
             </div>
           ))}
         </div>
+
+        {/* 기수 미참여 유저 신청 CTA */}
+        {showCTA && (
+          <div style={{ margin: '12px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '18px 16px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(74,222,128,0.10) 0%, transparent 60%)', pointerEvents: 'none' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', display: 'inline-block', boxShadow: '0 0 0 3px rgba(74,222,128,0.25)' }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px' }}>모집 중</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: 'white', marginBottom: 4 }}>다음 기수에 함께해요</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
+              {recruitingCohort!.title || '다음 기수'} · 소수 정예 · 30일 챌린지
+            </div>
+            {recruitingCohort!.recruit_link ? (
+              <a href={recruitingCohort!.recruit_link} target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#4ADE80', color: '#0A0A0A', borderRadius: 20, padding: '8px 18px', fontSize: 12, fontWeight: 900, textDecoration: 'none' }}>
+                신청하기 →
+              </a>
+            ) : (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>관리자에게 문의해주세요 · oorajoo@naver.com</div>
+            )}
+          </div>
+        )}
+
+        {/* 기수별 멤버 카드 */}
+        {cohorts.map(cohort => {
+          const members = byCohort[String(cohort.id)] || []
+          if (members.length === 0) return null
+          const color = cohortColors[(cohort.id - 1) % cohortColors.length]
+          const completedToday = members.filter(m =>
+            feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
+          ).length
+          return (
+            <div key={cohort.id} style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
+              <div style={{ background: color, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>{cohort.title || `${cohort.id}기`}</span>
+                    {cohort.is_open && <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: 'white', padding: '2px 7px', borderRadius: 20 }}>상시</span>}
+                  </div>
+                  {cohort.description && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cohort.description}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{members.length}명</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>오늘 {completedToday}명 완료</div>
+                </div>
+              </div>
+              <div style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
+                <div style={{ height: '100%', background: color, transition: 'width 0.5s', width: members.length > 0 ? `${(completedToday / members.length) * 100}%` : '0%' }} />
+              </div>
+              <div style={{ padding: '0 14px' }}>
+                {members.map(m => renderMemberCard(m, color))}
+                {cohort.is_recruiting && (
+                  <div style={{ margin: '10px 0', background: 'var(--surface)', borderRadius: 10, padding: '10px 13px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>🎉 지금 모집 중이에요!</div>
+                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>함께 30일 챌린지 도전해봐요</div>
+                    </div>
+                    {cohort.recruit_link && (
+                      <a href={cohort.recruit_link} target="_blank" rel="noreferrer" style={{ background: color, color: 'white', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, textDecoration: 'none', flexShrink: 0 }}>신청하기</a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* 상시 멤버 섹션 */}
+        {standaloneMembers.length > 0 && (
+          <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
+            <div style={{ background: '#4A4A4A', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>상시 멤버</span>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>기수 없이 자유롭게 참여 중</div>
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{standaloneMembers.length}명</div>
+            </div>
+            <div style={{ padding: '0 14px' }}>
+              {standaloneMembers.map(m => renderMemberCard(m, '#4A4A4A'))}
+            </div>
+          </div>
+        )}
+
         <div style={{ height: 20 }} />
       </>
     )
