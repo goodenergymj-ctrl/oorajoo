@@ -23,6 +23,7 @@ const Icon = ({ name, size = 16, color = 'currentColor' }: { name: string; size?
     chat: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
     flame: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 3z"/></svg>,
     sprout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-2-3.7.7-.1 3.3-.2 4.5.3z"/><path d="M14.1 6a7 7 0 0 1 2 7.4c-1.8.2-3.2.1-4.5-.5"/></svg>,
+    globe: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
   }
   return icons[name] || null
 }
@@ -79,6 +80,7 @@ const getLevel = (points: number) => {
 }
 
 const TAGS = ['#새벽기상', '#공부중', '#오늘의책', '#소확행', '#힘들다', '#운동', '#감사']
+const cohortColors = ['#2D4A7A', '#5C3D7A', '#7A3D3D', '#2D6B4A', '#6B4A2D', '#3D5C7A']
 const REACT_CONFIG = [
   { key: '❤️', emoji: '❤️' },
   { key: '👍', emoji: '👍' },
@@ -190,6 +192,12 @@ export default function App({ session }: { session: any }) {
   const challengeEnded = rawChallengeDay > 30
   const challengeRound = profile?.challenge_round || 1
 
+  const getCohortLabel = (cohortId: number | null) => {
+    if (!cohortId) return null
+    const c = cohorts.find(c => c.id === cohortId)
+    return c?.title || `${cohortId}기`
+  }
+
   // ─── 데이터 로드 ────────────────────────────────────────────
   const loadProfile = async () => {
     const { data } = await supabase
@@ -229,20 +237,25 @@ export default function App({ session }: { session: any }) {
   }
   const loadFeed = async () => {
     if (!myCohortId) return
-    const { data } = await supabase
+    const currentCohort = cohorts.find(c => c.id === myCohortId)
+    let query = supabase
       .from('feed')
       .select('*, profiles(*), comments(*, profiles(nickname))')
-      .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
+    if (currentCohort?.is_open) {
+      const openIds = cohorts.filter(c => c.is_open).map(c => c.id)
+      query = query.in('cohort_id', openIds.length > 0 ? openIds : [myCohortId])
+    } else {
+      query = query.eq('cohort_id', myCohortId)
+    }
+    const { data } = await query
     if (data) setFeed(data as FeedItem[])
   }
 
   const loadLounge = async () => {
-    if (!myCohortId) return
     const { data } = await supabase
       .from('lounge')
       .select('*, profiles(*), comments(*, profiles(nickname))')
-      .eq('cohort_id', myCohortId)
       .order('created_at', { ascending: false })
     if (data) setLounge(data as LoungePost[])
   }
@@ -732,7 +745,7 @@ export default function App({ session }: { session: any }) {
       imageUrl = publicUrl
     }
     await supabase.from('lounge').insert({
-      user_id: session.user.id, cohort_id: myCohortId,
+      user_id: session.user.id, cohort_id: null,
       content: newPost, tag: postTags.join(' ') || null, image_url: imageUrl,
     })
     setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
@@ -1407,6 +1420,11 @@ export default function App({ session }: { session: any }) {
               <div className="lc-top">
                 <div className="av" style={{ width: 30, height: 30, fontSize: 11, background: mp?.color || '#333' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname?.[0] || '?'}</div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
+                {mp?.cohort_id && getCohortLabel(mp.cohort_id) && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: cohortColors[(mp.cohort_id - 1) % cohortColors.length], padding: '2px 6px', borderRadius: 20, flexShrink: 0 }}>
+                    {getCohortLabel(mp.cohort_id)}
+                  </span>
+                )}
                 {isMe && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, marginLeft: 4 }}>나</span>}
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>{formatTime(post.created_at)}</span>
                 {isMe && <>
@@ -1628,6 +1646,114 @@ export default function App({ session }: { session: any }) {
     )
   }
 
+  const renderPlaza = () => {
+    const byCohort: Record<string, Profile[]> = {}
+    cohortMembers.forEach(m => {
+      if (!m.cohort_id) return
+      const key = String(m.cohort_id)
+      if (!byCohort[key]) byCohort[key] = []
+      byCohort[key].push(m)
+    })
+    const todayStr = getKSTDateString()
+
+    return (
+      <>
+        <div style={{ margin: '16px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '20px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: -20, right: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', textTransform: 'uppercase' as const, marginBottom: 4 }}>OORAJOO CHALLENGE</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: 'white', marginBottom: 6, letterSpacing: '-0.5px' }}>우라주 광장 🌍</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+            모든 멤버들이 모여있어요.<br />총 {cohortMembers.length}명이 함께 성장 중이에요.
+          </div>
+        </div>
+
+        {cohorts.map(cohort => {
+          const members = byCohort[String(cohort.id)] || []
+          if (members.length === 0) return null
+          const color = cohortColors[(cohort.id - 1) % cohortColors.length]
+          const completedToday = members.filter(m =>
+            feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
+          ).length
+
+          return (
+            <div key={cohort.id} style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
+              <div style={{ background: color, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>{cohort.title || `${cohort.id}기`}</span>
+                    {cohort.is_open && <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: 'white', padding: '2px 7px', borderRadius: 20 }}>상시</span>}
+                  </div>
+                  {cohort.description && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cohort.description}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{members.length}명</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>오늘 {completedToday}명 완료</div>
+                </div>
+              </div>
+              <div style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
+                <div style={{ height: '100%', background: color, transition: 'width 0.5s', width: members.length > 0 ? `${(completedToday / members.length) * 100}%` : '0%' }} />
+              </div>
+              <div style={{ padding: '12px 14px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {members.map(m => {
+                    const doneToday = feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
+                    return (
+                      <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: 48 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 13, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 900, color: 'white', border: doneToday ? `2.5px solid ${color}` : '2px solid transparent', boxShadow: doneToday ? '0 0 0 1px white' : 'none' }}>
+                          {m.nickname?.[0] || '?'}
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink2)', textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                          {m.nickname}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {cohort.is_recruiting && (
+                  <div style={{ marginTop: 12, background: 'var(--surface)', borderRadius: 10, padding: '10px 13px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>🎉 지금 모집 중이에요!</div>
+                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>함께 30일 챌린지 도전해봐요</div>
+                    </div>
+                    {cohort.recruit_link && (
+                      <a href={cohort.recruit_link} target="_blank" rel="noreferrer" style={{ background: color, color: 'white', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, textDecoration: 'none', flexShrink: 0 }}>신청하기</a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '15px', boxShadow: 'var(--sh)' }}>
+          <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 12 }}>🏆 스트릭 TOP 5</div>
+          {[...cohortMembers].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 5).map((m, i) => (
+            <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < 4 ? 10 : 0, cursor: 'pointer' }}>
+              <div style={{ width: 22, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
+                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--ink3)' }}>{i + 1}</span>}
+              </div>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: 'white', flexShrink: 0 }}>
+                {m.nickname?.[0]}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</span>
+                  {m.cohort_id && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: cohortColors[(m.cohort_id - 1) % cohortColors.length], padding: '1px 6px', borderRadius: 20 }}>
+                      {getCohortLabel(m.cohort_id)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>{m.streak || 0}일 🔥</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ height: 20 }} />
+      </>
+    )
+  }
+
   const renderGroup = () => (
     <>
       <div className="group-hero">
@@ -1743,6 +1869,7 @@ export default function App({ session }: { session: any }) {
         <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 14 }}>관리자 패널</div>
         <div className="admin-tabs">
           <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
+          <button className={`admin-tab${adminTab === 'cohort' ? ' on' : ''}`} onClick={() => setAdminTab('cohort')}>기수관리</button>
         </div>
 
         {adminTab === 'notice' && (<>
@@ -1768,6 +1895,49 @@ export default function App({ session }: { session: any }) {
             <button onClick={async () => { if (!confirm('공지를 삭제할까요?')) return; await supabase.from('notices').delete().eq('id', notice.id); setNotice(null) }} style={{ width: '100%', background: 'none', border: '1px solid #DC2626', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, color: '#DC2626', cursor: 'pointer', marginTop: 8 }}>현재 공지 삭제</button>
           )}
         </>)}
+
+        {adminTab === 'cohort' && (
+          <>
+            {cohorts.map(cohort => (
+              <div key={cohort.id} style={{ background: 'var(--surface)', borderRadius: 12, padding: 13, marginBottom: 10, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 900 }}>{cohort.title || `${cohort.id}기`}</span>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: cohort.is_open ? '#DCFCE7' : '#DBEAFE', color: cohort.is_open ? '#16A34A' : '#1D4ED8' }}>{cohort.is_open ? '상시' : '정식기수'}</span>
+                    <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{cohortCounts[cohort.id] || 0}명</span>
+                  </div>
+                </div>
+                <input className="admin-input" style={{ marginBottom: 6 }} placeholder="기수 이름 (예: 1기, 봄기수)" defaultValue={cohort.title || ''} id={`ct-${cohort.id}`} />
+                <input className="admin-input" style={{ marginBottom: 6 }} placeholder="기수 소개" defaultValue={cohort.description || ''} id={`cd-${cohort.id}`} />
+                <input className="admin-input" style={{ marginBottom: 8 }} placeholder="모집 링크" defaultValue={cohort.recruit_link || ''} id={`cl-${cohort.id}`} />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>상시 운영</span>
+                    <button className={`toggle-btn ${cohort.is_open ? 'on' : 'off'}`} onClick={async () => { await supabase.from('cohorts').update({ is_open: !cohort.is_open }).eq('id', cohort.id); loadCohorts() }}><div className="toggle-dot" /></button>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700 }}>모집 중</span>
+                    <button className={`toggle-btn ${cohort.is_recruiting ? 'on' : 'off'}`} onClick={async () => { await supabase.from('cohorts').update({ is_recruiting: !cohort.is_recruiting }).eq('id', cohort.id); loadCohorts() }}><div className="toggle-dot" /></button>
+                  </div>
+                </div>
+                <button onClick={async () => {
+                  const title = (document.getElementById(`ct-${cohort.id}`) as HTMLInputElement)?.value
+                  const desc = (document.getElementById(`cd-${cohort.id}`) as HTMLInputElement)?.value
+                  const link = (document.getElementById(`cl-${cohort.id}`) as HTMLInputElement)?.value
+                  await supabase.from('cohorts').update({ title, description: desc, recruit_link: link || null }).eq('id', cohort.id)
+                  loadCohorts(); showToast('저장됐어요 ✓')
+                }} style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>저장</button>
+              </div>
+            ))}
+            <button onClick={async () => {
+              const maxId = cohorts.reduce((max, c) => Math.max(max, c.id), 0)
+              await supabase.from('cohorts').insert({ start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'active', max_slots: 20, title: `${maxId + 1}기`, is_open: false })
+              loadCohorts(); showToast(`${maxId + 1}기 생성됐어요!`)
+            }} style={{ width: '100%', background: 'none', border: '2px dashed var(--border)', borderRadius: 12, padding: 13, fontSize: 13, fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer' }}>
+              + 새 기수 만들기
+            </button>
+          </>
+        )}
 
       </div>
     </div>
@@ -1826,11 +1996,12 @@ export default function App({ session }: { session: any }) {
         {tab === 'today' && renderToday()}
         {tab === 'lounge' && renderLounge()}
         {tab === 'record' && renderRecord()}
+        {tab === 'plaza' && renderPlaza()}
         {tab === 'group' && renderGroup()}
         {tab === 'settings' && renderSettings()}
 
         <div className="tab-bar">
-          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['group', 'users', '그룹'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
+          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['plaza', 'globe', '광장'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>
               <Icon name={icon} size={17} color={tab === k ? 'white' : 'var(--ink3)'} />
               <span>{label}</span>

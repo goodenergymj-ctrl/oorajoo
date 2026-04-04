@@ -36,6 +36,11 @@ export type Cohort = {
   status: 'upcoming' | 'active' | 'ended'
   max_slots: number
   price: number
+  is_open?: boolean
+  title?: string
+  description?: string
+  is_recruiting?: boolean
+  recruit_link?: string
 }
 
 export type FeedItem = {
