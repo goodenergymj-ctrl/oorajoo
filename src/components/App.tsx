@@ -159,8 +159,6 @@ export default function App({ session }: { session: any }) {
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
   const [pushGranted, setPushGranted] = useState(false)
-  const [followings, setFollowings] = useState<Set<string>>(new Set())
-  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const [members, setMembers] = useState<Profile[]>([])
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
@@ -173,9 +171,6 @@ export default function App({ session }: { session: any }) {
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
-  const displayFeed = feedFilter === 'following' && followings.size > 0
-    ? feed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
-    : feed
 
   const challengeStartDate = new Date(profile?.challenge_started_at || profile?.created_at || new Date())
   const rawChallengeDay = Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -273,11 +268,6 @@ export default function App({ session }: { session: any }) {
       .not('nickname', 'is', null)
       .order('streak', { ascending: false })
     if (data) setMembers(data as Profile[])
-  }
-
-  const loadFollowings = async () => {
-    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
-    if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
   }
 
   const loadWeeklyStats = async () => {
@@ -385,7 +375,6 @@ export default function App({ session }: { session: any }) {
     loadReactions()
     loadTodayCompletion()
     loadMembers()
-    loadFollowings()
     checkTodaySubmitted()
     loadWeeklyStats()
   }, [])
@@ -454,18 +443,6 @@ export default function App({ session }: { session: any }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetUserId, title, body }),
     }).catch(() => {})
-  }
-
-  const toggleFollow = async (userId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (followings.has(userId)) {
-      const { error } = await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
-      if (!error) setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
-    } else {
-      const { error } = await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
-      if (!error) setFollowings(prev => new Set([...prev, userId]))
-      else loadFollowings()
-    }
   }
 
   const saveNotifTime = async (time: string) => {
@@ -1258,22 +1235,12 @@ export default function App({ session }: { session: any }) {
 
       <div className="sec-label">
         멤버들의 오늘
-        <span className="sec-sub">{displayFeed.length}개</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {(['all', 'following'] as const).map(f => (
-            <button key={f} onClick={() => setFeedFilter(f)} style={{ fontSize: 10, fontWeight: 700, border: '1.5px solid', borderColor: feedFilter === f ? 'var(--black)' : 'var(--border)', borderRadius: 20, padding: '3px 9px', background: feedFilter === f ? 'var(--black)' : 'transparent', color: feedFilter === f ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
-              {f === 'all' ? '전체' : '팔로잉'}
-            </button>
-          ))}
-        </div>
+        <span className="sec-sub">{feed.length}개</span>
       </div>
-      {feedFilter === 'following' && followings.size === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>멤버 탭에서 팔로우하면 여기서 따로 볼 수 있어요</div>
-      )}
-      {displayFeed.map((item, index) => (
+      {feed.map((item, index) => (
         <div key={item.id}>
           {renderFeedCard(item)}
-          {(index + 1) % 3 === 0 && index !== displayFeed.length - 1 && (
+          {(index + 1) % 3 === 0 && index !== feed.length - 1 && (
             <AdBanner adUnitId="DAN-XXXXXXXXXX" width={320} height={50} />
           )}
         </div>
@@ -1666,7 +1633,6 @@ export default function App({ session }: { session: any }) {
           const rate = getRate(m)
           const doneToday = todayDoneIds.has(m.id)
           const isMe = m.id === session.user.id
-          const isFollowing = followings.has(m.id)
           return (
             <div key={m.id} style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '13px 14px', margin: '0 16px 8px', cursor: 'pointer' }} onClick={() => setSelectedProfile(m)}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1689,15 +1655,8 @@ export default function App({ session }: { session: any }) {
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)' }}>{rate}%</span>
                   </div>
                 </div>
-                {isMe ? (
+                {isMe && (
                   <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, flexShrink: 0 }}>나</span>
-                ) : (
-                  <button
-                    onClick={e => toggleFollow(m.id, e)}
-                    style={{ fontSize: 11, fontWeight: 700, border: isFollowing ? '1.5px solid var(--border)' : '1.5px solid var(--black)', borderRadius: 20, padding: '5px 12px', background: isFollowing ? 'var(--surface)' : 'var(--black)', color: isFollowing ? 'var(--ink2)' : 'white', cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    {isFollowing ? '팔로잉' : '+ 팔로우'}
-                  </button>
                 )}
               </div>
               {m.intro && <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 7, paddingLeft: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.intro}</div>}
