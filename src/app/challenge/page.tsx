@@ -200,7 +200,7 @@ export default function ChallengePage() {
               <div className="empty-icon">🌱</div>
               <div className="empty-title">현재 모집 중인 기수가 없어요</div>
               <div className="empty-desc">다음 기수 오픈 시 알림을 받아보세요.<br />보통 기수 종료 1–2주 전에 공지해요.</div>
-              <button className="notify-btn" onClick={() => window.open('https://instagram.com/oorajoo', '_blank')}>
+              <button className="notify-btn" onClick={() => window.open('https://instagram.com/oo.ra.joo', '_blank')}>
                 🔔 알림 신청하기
               </button>
             </div>

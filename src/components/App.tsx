@@ -1477,10 +1477,12 @@ export default function App({ session }: { session: any }) {
           {/* 스트릭 보호권: 어제 기록 없고 오늘 아직 미제출 상태일 때 표시 */}
           {streakAtRisk && (
             <button
-              onClick={() => {
-                // TODO: streak_shield 필드를 true로 업데이트하고 streak 유지 처리
-                // await supabase.from('profiles').update({ streak_shield: true }).eq('id', session.user.id)
-                alert('스트릭 보호권 기능은 준비 중이에요!')
+              onClick={async () => {
+                const { error } = await supabase.from('profiles').update({ streak_shield: true }).eq('id', session.user.id)
+                if (!error) {
+                  setProfile(p => p ? { ...p, streak_shield: true } as any : p)
+                  showToast('🛡️ 스트릭 보호권을 사용했어요! 오늘 기록하면 스트릭이 유지돼요.')
+                }
               }}
               style={{ marginTop: 12, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '9px 16px', fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer', width: '100%', fontFamily: 'inherit' }}>
               🛡️ 스트릭 보호권 사용하기 ({profile?.streak || 0}일 스트릭 보호)
