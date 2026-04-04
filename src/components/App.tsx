@@ -134,6 +134,8 @@ export default function App({ session }: { session: any }) {
   const [postImage, setPostImage] = useState<File | null>(null)
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null)
   const [showPostInput, setShowPostInput] = useState(false)
+  const [cheerInput, setCheerInput] = useState('')
+  const [cheerPosting, setCheerPosting] = useState(false)
 
   // UI
   const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({})
@@ -764,6 +766,21 @@ export default function App({ session }: { session: any }) {
     loadLounge()
   }
 
+  const submitCheer = async () => {
+    if (!cheerInput.trim() || !profile?.cohort_id) return
+    setCheerPosting(true)
+    await supabase.from('lounge').insert({
+      user_id: session.user.id,
+      cohort_id: profile.cohort_id,
+      content: cheerInput.trim(),
+      tag: '#기수응원',
+      image_url: null,
+    })
+    setCheerInput('')
+    setCheerPosting(false)
+    loadLounge()
+  }
+
   const openShare = (item: any, type: 'feed' | 'lounge') => {
     const name = (item.profiles as Profile)?.nickname || ''
     const url = `${window.location.origin}/${type}/${item.id}`
@@ -1227,14 +1244,30 @@ export default function App({ session }: { session: any }) {
     )
   }
 
-  const renderToday = () => (
+  const renderToday = () => {
+    const myCohortMemberCount = cohortMembers.filter(m => m.cohort_id === myCohortId).length
+    const todayStr = getKSTDateString()
+    const cheerMessages = lounge.filter(p =>
+      p.tag === '#기수응원' && p.cohort_id === myCohortId
+    ).slice(0, 5)
+
+    return (
     <>
       {todayCompletionCount > 0 && (
         <div style={{ margin: '14px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔥</span>
           <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
-            <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
+            {profile?.cohort_id ? (
+              <>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>우리 기수 {todayCompletionCount}/{myCohortMemberCount}명</span>
+                <span style={{ fontSize: 13, color: 'var(--ink2)' }}> 완료!</span>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
+                <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
+              </>
+            )}
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)', whiteSpace: 'nowrap' as const }}>나도 하기!</span>
         </div>
@@ -1328,6 +1361,50 @@ export default function App({ session }: { session: any }) {
         )}
       </div>
 
+      {/* 기수 응원 한마디 — 기수 멤버 전용 */}
+      {profile?.cohort_id && !isEnded && (
+        <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--sh)' }}>
+          <div style={{ padding: '11px 14px 0' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginBottom: 8 }}>💬 기수 응원 한마디</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit' }}
+                placeholder="기수 멤버들에게 한마디!"
+                value={cheerInput}
+                onChange={e => setCheerInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submitCheer()}
+                maxLength={60}
+              />
+              <button
+                onClick={submitCheer}
+                disabled={!cheerInput.trim() || cheerPosting}
+                style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '0 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !cheerInput.trim() ? 0.4 : 1, flexShrink: 0 }}>
+                전송
+              </button>
+            </div>
+          </div>
+          {cheerMessages.length > 0 && (
+            <div style={{ padding: '8px 14px 11px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {cheerMessages.map(post => {
+                const poster = post.profiles as Profile
+                return (
+                  <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 7, background: poster?.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>
+                      {poster?.nickname?.[0] || '?'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginRight: 5 }}>{poster?.nickname}</span>
+                      <span style={{ fontSize: 12, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{post.content}</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--ink3)', flexShrink: 0 }}>{formatTime(post.created_at)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="sec-label">
         {isEnded ? '지난 기록 보관함' : '멤버들의 오늘'}
         <span className="sec-sub">{displayFeed.length}개</span>
@@ -1351,7 +1428,8 @@ export default function App({ session }: { session: any }) {
         </div>
       ))}
     </>
-  )
+    )
+  }
 
   const renderLounge = () => (
     <>
@@ -1499,6 +1577,9 @@ export default function App({ session }: { session: any }) {
           return kst.toISOString().split('T')[0]
         })
     )
+    const yesterdayKST = new Date(new Date(todayKST + 'T00:00:00+09:00').getTime() - 24 * 60 * 60 * 1000)
+      .toISOString().split('T')[0]
+    const streakAtRisk = !submitted && !myFeedDateSet.has(yesterdayKST) && (profile?.streak || 0) > 1
     const gridCells = Array.from({ length: 30 }, (_, i) => {
       const dayDate = new Date(challengeStartDate.getTime() + i * 24 * 60 * 60 * 1000)
       const dayKST = new Date(dayDate.getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -1547,6 +1628,18 @@ export default function App({ session }: { session: any }) {
           <div className="sh-bar-bg">
             <div className="sh-bar-fill" style={{ width: `${Math.min(100, (challengeDay / 30) * 100)}%` }} />
           </div>
+          {/* 스트릭 보호권: 어제 기록 없고 오늘 아직 미제출 상태일 때 표시 */}
+          {streakAtRisk && (
+            <button
+              onClick={() => {
+                // TODO: streak_shield 필드를 true로 업데이트하고 streak 유지 처리
+                // await supabase.from('profiles').update({ streak_shield: true }).eq('id', session.user.id)
+                alert('스트릭 보호권 기능은 준비 중이에요!')
+              }}
+              style={{ marginTop: 12, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '9px 16px', fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer', width: '100%', fontFamily: 'inherit' }}>
+              🛡️ 스트릭 보호권 사용하기 ({profile?.streak || 0}일 스트릭 보호)
+            </button>
+          )}
         </div>
 
         <div className="grid-card">
