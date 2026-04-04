@@ -31,7 +31,7 @@ export async function GET() {
 4. 예시처럼 작성하세요:
    - 오늘 가장 감사했던 순간은 무엇인가요?
    - 지금 나에게 가장 필요한 것은 무엇일까요?
-   - 한 달 후의 나는 어떤 모습이길 바라시나요?`,
+   - 한 달 후의 나는 어떤 모습이길 바라나요?`,
         messages: [{
           role: 'user',
           content: `오늘 날짜: ${today}. 자기성장 30일 챌린지 참여자를 위한 성찰 질문 하나를 생성해주세요. 조건: 25자 이내 / 관계·꿈·습관·감사·성장·용기·현재순간 중 오늘 날짜에 맞는 주제 선택 / 반드시 존댓말(~까요? ~나요? ~인가요? ~할까요? ~있나요?)로 끝낼 것 / 질문 텍스트만 출력.`
@@ -40,7 +40,7 @@ export async function GET() {
     })
     const data = await res.json()
     const raw = data.content?.[0]?.text?.trim() || ''
-    const honorifics = ['까요?', '나요?', '인가요?', '할까요?', '볼까요?', '줄까요?', '있나요?', '었나요?', '했나요?', '셨나요?', '실까요?', '싶나요?', '를까요?', '을까요?']
+    const honorifics = ['까요?', '나요?', '인가요?', '할까요?', '볼까요?', '줄까요?', '있나요?', '었나요?', '했나요?', '셨나요?', '싶나요?', '를까요?', '을까요?']
     const isHonorific = honorifics.some(ending => raw.endsWith(ending))
     const question = (raw && isHonorific) ? raw : '오늘 가장 감사했던 순간은 무엇인가요?'
     cachedQuestion = question
