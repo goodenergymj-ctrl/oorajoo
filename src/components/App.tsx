@@ -178,10 +178,12 @@ export default function App({ session }: { session: any }) {
   const [weeklyStats, setWeeklyStats] = useState<{ thisWeek: number; lastWeek: number }>({ thisWeek: 0, lastWeek: 0 })
 
   // ─── 파생값 ────────────────────────────────────────────────
-  const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
+  const isAdmin = profile?.is_admin || false
+  const myCohortId = isAdmin
+    ? (viewingCohortId || 0)
+    : (viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0)
   const myCohort = cohorts.find(c => c.id === myCohortId)
   const isEnded = myCohort?.status === 'ended'
-  const isAdmin = profile?.is_admin || false
   const myFeed = feed.filter(f => f.cohort_id === myCohortId)
   const displayFeed = feedFilter === 'following' && followings.size > 0
     ? myFeed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
@@ -592,7 +594,7 @@ export default function App({ session }: { session: any }) {
   }
 
   const submitRecord = async () => {
-    if (!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim()) return
+    if (!myRecord.gratitude.trim() || !myRecord.goal.trim()) return
     setSubmitting(true)
     const { error } = await supabase.from('feed').insert({
       user_id: session.user.id,
@@ -1299,17 +1301,6 @@ export default function App({ session }: { session: any }) {
                       <textarea className="wc-ta" rows={2} placeholder={ph} value={(myRecord as any)[key]} onChange={e => setMyRecord(p => ({ ...p, [key]: e.target.value }))} />
                     </div>
                   ))}
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#999' }} />
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)' }}>오늘의 질문</span>
-                    </div>
-                    <div className="wc-q-box">
-                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>✦ AI DAILY QUESTION</div>
-                      {qLoading ? <><div className="wc-shimmer" /><div className="wc-shimmer s" /></> : <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.7 }}>{question}</div>}
-                    </div>
-                    <textarea className="wc-ta" rows={2} placeholder="자유롭게 한 줄이라도!" value={myRecord.question_answer} onChange={e => setMyRecord(p => ({ ...p, question_answer: e.target.value }))} />
-                  </div>
                   <div onClick={() => setMyRecord(p => ({ ...p, is_private: !p.is_private }))} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '10px 13px', background: 'var(--surface)', borderRadius: 10, cursor: 'pointer' }}>
                     <Icon name={myRecord.is_private ? 'eyeOff' : 'eye'} size={16} color="var(--ink2)" />
                     <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', flex: 1 }}>{myRecord.is_private ? '나만 보기 (비공개)' : '그룹과 공유'}</span>
@@ -1317,7 +1308,19 @@ export default function App({ session }: { session: any }) {
                       <div style={{ position: 'absolute', top: 2, left: myRecord.is_private ? 17 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                     </div>
                   </div>
-                  <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || !myRecord.question_answer.trim() || submitting} onClick={submitRecord}>{submitting ? '공유 중...' : '공유하기'}</button>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#999' }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)' }}>오늘의 질문</span>
+                      <span style={{ fontSize: 10, color: 'var(--ink3)' }}>(선택)</span>
+                    </div>
+                    <div className="wc-q-box">
+                      <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>✦ AI DAILY QUESTION</div>
+                      {qLoading ? <><div className="wc-shimmer" /><div className="wc-shimmer s" /></> : <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.7 }}>{question}</div>}
+                    </div>
+                    <textarea className="wc-ta" rows={2} placeholder="자유롭게 한 줄이라도!" value={myRecord.question_answer} onChange={e => setMyRecord(p => ({ ...p, question_answer: e.target.value }))} />
+                  </div>
+                  <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || submitting} onClick={submitRecord}>{submitting ? '공유 중...' : '공유하기'}</button>
                 </>
               )}
             </div>
