@@ -803,10 +803,11 @@ export default function App({ session }: { session: any }) {
     if (followings.has(userId)) {
       const { error } = await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
       if (!error) setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
+      else showToast('언팔로우 실패: ' + error.message)
     } else {
       const { error } = await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
       if (!error) setFollowings(prev => new Set([...prev, userId]))
-      else loadFollowings()
+      else showToast('팔로우 실패: ' + error.message)
     }
   }
 
