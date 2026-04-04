@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, type Profile, type Cohort, type FeedItem, type LoungePost, type Notice } from '@/lib/supabase'
+import { supabase, type Profile, type FeedItem, type LoungePost, type Notice } from '@/lib/supabase'
 import AdBanner from './AdBanner'
 
 // ─── 아이콘 ────────────────────────────────────────────────────
@@ -99,7 +99,6 @@ export default function App({ session }: { session: any }) {
   // ─── State (모두 최상단) ────────────────────────────────────
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [cohorts, setCohorts] = useState<Cohort[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [lounge, setLounge] = useState<LoungePost[]>([])
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -143,7 +142,6 @@ export default function App({ session }: { session: any }) {
   const [editingProfile, setEditingProfile] = useState(false)
   const [editData, setEditData] = useState<any>({})
   const [showAdmin, setShowAdmin] = useState(false)
-  const [adminTab, setAdminTab] = useState('notice')
   const [adminForm, setAdminForm] = useState({ title: '', body: '', link: '', hasPoll: false, pollQ: '', pollOptions: ['', ''] })
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
   const [editingPostText, setEditingPostText] = useState('')
@@ -161,8 +159,6 @@ export default function App({ session }: { session: any }) {
   const [isInstalled, setIsInstalled] = useState(false)
   const [showIOSGuide, setShowIOSGuide] = useState(false)
   const [pushGranted, setPushGranted] = useState(false)
-  const [followings, setFollowings] = useState<Set<string>>(new Set())
-  const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
@@ -174,13 +170,6 @@ export default function App({ session }: { session: any }) {
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
-  const myCohortId = profile?.cohort_id || 0
-  const myCohort = cohorts.find(c => c.id === myCohortId)
-  const isEnded = myCohort?.status === 'ended'
-  const myFeed = feed
-  const displayFeed = feedFilter === 'following' && followings.size > 0
-    ? myFeed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
-    : myFeed
 
   const challengeStartDate = new Date(profile?.challenge_started_at || profile?.created_at || new Date())
   const rawChallengeDay = Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -197,11 +186,6 @@ export default function App({ session }: { session: any }) {
       .single()
     setProfile(data)
     setProfileLoaded(true)
-  }
-
-  const loadCohorts = async () => {
-    const { data } = await supabase.from('cohorts').select('*').order('id')
-    if (data) setCohorts(data)
   }
 
   const checkTodaySubmitted = async () => {
@@ -246,7 +230,7 @@ export default function App({ session }: { session: any }) {
     const { data } = await supabase
       .from('notices')
       .select('*')
-      .or(`cohort_id.eq.${myCohortId},cohort_id.is.null`)
+      .is('cohort_id', null)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -267,18 +251,11 @@ export default function App({ session }: { session: any }) {
       setReactions(myR)
     }
   }
-  const loadFollowings = async () => {
-    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
-    if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
-  }
-
   const loadTodayCompletion = async () => {
-    if (!myCohortId) return
     const today = getKSTDateString()
     const { data } = await supabase
       .from('feed')
       .select('user_id')
-      .eq('cohort_id', myCohortId)
       .gte('created_at', today + 'T00:00:00+09:00')
     if (data) setTodayCompletionCount(new Set(data.map((d: any) => d.user_id)).size)
   }
@@ -326,8 +303,6 @@ export default function App({ session }: { session: any }) {
 
   useEffect(() => {
     loadProfile()
-    loadCohorts()
-    loadFollowings()
     fetchQuestion()
     const onOnline = () => setIsOnline(true)
     const onOffline = () => setIsOnline(false)
@@ -384,18 +359,14 @@ export default function App({ session }: { session: any }) {
   }, [profileLoaded])
 
   useEffect(() => {
-    // 코호트 없는 유저(관리자 포함)도 피드/라운지 로드
     loadFeed()
     loadLounge()
+    loadNotice()
+    loadReactions()
+    loadTodayCompletion()
     checkTodaySubmitted()
-    loadFollowings()
     loadWeeklyStats()
-    if (myCohortId) {
-      loadNotice()
-      loadReactions()
-      loadTodayCompletion()
-    }
-  }, [myCohortId])
+  }, [])
 
 
   useEffect(() => {
@@ -422,7 +393,7 @@ export default function App({ session }: { session: any }) {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [myCohortId])
+  }, [])
 
   // ─── 핸들러 ────────────────────────────────────────────────
   const subscribePush = async () => {
@@ -463,18 +434,6 @@ export default function App({ session }: { session: any }) {
     }).catch(() => {})
   }
 
-  const toggleFollow = async (userId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (followings.has(userId)) {
-      const { error } = await supabase.from('follows').delete().eq('follower_id', session.user.id).eq('following_id', userId)
-      if (!error) setFollowings(prev => { const s = new Set(prev); s.delete(userId); return s })
-    } else {
-      const { error } = await supabase.from('follows').insert({ follower_id: session.user.id, following_id: userId })
-      if (!error) setFollowings(prev => new Set([...prev, userId]))
-      else await loadFollowings()
-    }
-  }
-
   const saveNotifTime = async (time: string) => {
     setSavingNotif(true)
     setNotifTime(time)
@@ -495,7 +454,6 @@ export default function App({ session }: { session: any }) {
   const saveProfile = async () => {
     if (!obNickname.trim()) return
     setObSaving(true)
-    const activeCohort = cohorts.find(c => c.status === 'active') || cohorts[0] || null
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
@@ -510,7 +468,6 @@ export default function App({ session }: { session: any }) {
         insta_id: obInsta.trim() || null,
         naver_blog: obNaver.trim() || null,
         is_approved: true,
-        cohort_id: activeCohort?.id || null,
         notification_time: notifTime || null,
       }).eq('id', session.user.id)
       error = result.error
@@ -524,7 +481,6 @@ export default function App({ session }: { session: any }) {
         naver_blog: obNaver.trim() || null,
         is_admin: false,
         is_approved: true,
-        cohort_id: activeCohort?.id || null,
         color: ['#1A1A1A', '#2D4A7A', '#5C3D7A', '#7A3D3D', '#2D6B4A', '#6B4A2D', '#3D5C7A', '#7A5C2D'][Math.floor(Math.random() * 8)],
         tags: [],
         notification_time: notifTime || null,
@@ -545,7 +501,7 @@ export default function App({ session }: { session: any }) {
     setSubmitting(true)
     const { error } = await supabase.from('feed').insert({
       user_id: session.user.id,
-      cohort_id: myCohortId,
+      cohort_id: null,
       gratitude: myRecord.gratitude,
       goal: myRecord.goal,
       question: question || null,
@@ -759,7 +715,7 @@ export default function App({ session }: { session: any }) {
     const poll = adminForm.hasPoll && adminForm.pollQ.trim()
       ? { question: adminForm.pollQ, options: adminForm.pollOptions.filter(o => o.trim()), votes: Object.fromEntries(adminForm.pollOptions.filter(o => o.trim()).map(o => [o, 0])), myVotes: [] }
       : null
-    await supabase.from('notices').insert({ title: adminForm.title, body: adminForm.body, link: adminForm.link || null, poll, cohort_id: myCohortId })
+    await supabase.from('notices').insert({ title: adminForm.title, body: adminForm.body, link: adminForm.link || null, poll, cohort_id: null })
     setAdminForm({ title: '', body: '', link: '', hasPoll: false, pollQ: '', pollOptions: ['', ''] })
     setShowAdmin(false); loadNotice()
   }
@@ -1208,26 +1164,11 @@ export default function App({ session }: { session: any }) {
         </div>
       )}
 
-      {isEnded && (
-        <div style={{ margin: '12px 16px 0', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Icon name="lock" size={16} color="var(--ink3)" />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)' }}>30일 챌린지가 종료됐어요 🎉</div>
-            <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>기록은 계속 볼 수 있어요</div>
-          </div>
-        </div>
-      )}
-
       <div className="write-section">
-        {isEnded ? (
-          <div style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: 20, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink2)' }}>종료된 챌린지예요</div>
-          </div>
-        ) : (
-          <div className="write-card">
-            <div className="wc-bar" />
-            <div className="wc-inner">
-              {submitted ? (
+        <div className="write-card">
+          <div className="wc-bar" />
+          <div className="wc-inner">
+            {submitted ? (
                 <div className="wc-done">
                   <div className="wc-done-icon"><Icon name="check" size={22} color="var(--black)" /></div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>공유 완료!</div>
@@ -1277,29 +1218,18 @@ export default function App({ session }: { session: any }) {
                   <button className="wc-submit" disabled={!myRecord.gratitude.trim() || !myRecord.goal.trim() || submitting} onClick={submitRecord}>{submitting ? '공유 중...' : '공유하기'}</button>
                 </>
               )}
-            </div>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="sec-label">
-        {isEnded ? '지난 기록 보관함' : '멤버들의 오늘'}
-        <span className="sec-sub">{displayFeed.length}개</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {(['all', 'following'] as const).map(f => (
-            <button key={f} onClick={() => setFeedFilter(f)} style={{ fontSize: 10, fontWeight: 700, border: '1.5px solid', borderColor: feedFilter === f ? 'var(--black)' : 'var(--border)', borderRadius: 20, padding: '3px 9px', background: feedFilter === f ? 'var(--black)' : 'transparent', color: feedFilter === f ? 'white' : 'var(--ink3)', cursor: 'pointer' }}>
-              {f === 'all' ? '전체' : '팔로잉'}
-            </button>
-          ))}
-        </div>
+        멤버들의 오늘
+        <span className="sec-sub">{feed.length}개</span>
       </div>
-      {feedFilter === 'following' && followings.size === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>팔로우한 멤버가 없어요. 멤버 프로필을 눌러 팔로우해보세요!</div>
-      )}
-      {displayFeed.map((item, index) => (
+      {feed.map((item, index) => (
         <div key={item.id}>
           {renderFeedCard(item)}
-          {(index + 1) % 3 === 0 && index !== displayFeed.length - 1 && (
+          {(index + 1) % 3 === 0 && index !== feed.length - 1 && (
             <AdBanner adUnitId="DAN-XXXXXXXXXX" width={320} height={50} />
           )}
         </div>
@@ -1672,9 +1602,7 @@ export default function App({ session }: { session: any }) {
         <div className="settings-title">서비스</div>
         <div className="settings-card">
           <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">oorajoo@naver.com</div></div></div>
-          <a href="/challenge" style={{ textDecoration: 'none', display: 'block' }}>
-            <div className="settings-row"><div><div className="settings-row-label">기수 챌린지 →</div><div className="settings-row-sub">기수별 챌린지 소개 및 신청</div></div></div>
-          </a>
+          <div className="settings-row" onClick={() => window.open('/challenge', '_blank')}><div><div className="settings-row-label">우라주 챌린지 기수 참여하기 →</div><div className="settings-row-sub">기수별 챌린지 소개 및 신청</div></div></div>
         </div>
       </div>
       <div className="settings-section">
