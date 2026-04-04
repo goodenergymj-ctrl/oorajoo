@@ -80,7 +80,6 @@ const getLevel = (points: number) => {
 }
 
 const TAGS = ['#새벽기상', '#공부중', '#오늘의책', '#소확행', '#힘들다', '#운동', '#감사']
-const cohortColors = ['#2D4A7A', '#5C3D7A', '#7A3D3D', '#2D6B4A', '#6B4A2D', '#3D5C7A']
 const REACT_CONFIG = [
   { key: '❤️', emoji: '❤️' },
   { key: '👍', emoji: '👍' },
@@ -106,10 +105,6 @@ export default function App({ session }: { session: any }) {
   const [notice, setNotice] = useState<Notice | null>(null)
   const [question, setQuestion] = useState('')
   const [qLoading, setQLoading] = useState(true)
-  const [viewingCohortId, setViewingCohortId] = useState<number | null>(null)
-  const [pendingMembers, setPendingMembers] = useState<any[]>([])
-  const [cohortMembers, setCohortMembers] = useState<Profile[]>([])
-  const [cohortCounts, setCohortCounts] = useState<Record<number, number>>({})
   const [tab, setTab] = useState('today')
 
   // 온보딩
@@ -150,7 +145,6 @@ export default function App({ session }: { session: any }) {
   const [showAdmin, setShowAdmin] = useState(false)
   const [adminTab, setAdminTab] = useState('notice')
   const [adminForm, setAdminForm] = useState({ title: '', body: '', link: '', hasPoll: false, pollQ: '', pollOptions: ['', ''] })
-  const [editingCohort, setEditingCohort] = useState<Cohort | null>(null)
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
   const [editingPostText, setEditingPostText] = useState('')
   const [editingPostType, setEditingPostType] = useState<'feed' | 'lounge' | null>(null)
@@ -171,14 +165,8 @@ export default function App({ session }: { session: any }) {
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
-  const [applications, setApplications] = useState<any[]>([])
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [profileSetupSaving, setProfileSetupSaving] = useState(false)
-  const [showApplyModal, setShowApplyModal] = useState(false)
-  const [applyCohortId, setApplyCohortId] = useState<number>(0)
-  const [applyForm, setApplyForm] = useState({ name: '', pledge: '' })
-  const [applySubmitting, setApplySubmitting] = useState(false)
-  const [applyDone, setApplyDone] = useState(false)
   const [todayCompletionCount, setTodayCompletionCount] = useState(0)
   const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
   const [showBadgePopup, setShowBadgePopup] = useState(false)
@@ -186,12 +174,10 @@ export default function App({ session }: { session: any }) {
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
-  const myCohortId = isAdmin
-    ? (viewingCohortId || 0)
-    : (viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0)
+  const myCohortId = profile?.cohort_id || 0
   const myCohort = cohorts.find(c => c.id === myCohortId)
   const isEnded = myCohort?.status === 'ended'
-  const myFeed = myCohortId ? feed.filter(f => f.cohort_id === myCohortId) : feed
+  const myFeed = feed
   const displayFeed = feedFilter === 'following' && followings.size > 0
     ? myFeed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
     : myFeed
@@ -201,12 +187,6 @@ export default function App({ session }: { session: any }) {
   const challengeDay = Math.max(1, Math.min(rawChallengeDay, 30))
   const challengeEnded = rawChallengeDay > 30
   const challengeRound = profile?.challenge_round || 1
-
-  const getCohortLabel = (cohortId: number | null) => {
-    if (!cohortId) return null
-    const c = cohorts.find(c => c.id === cohortId)
-    return c?.title || `${cohortId}기`
-  }
 
   // ─── 데이터 로드 ────────────────────────────────────────────
   const loadProfile = async () => {
@@ -246,21 +226,11 @@ export default function App({ session }: { session: any }) {
     }
   }
   const loadFeed = async () => {
-    const currentCohort = cohorts.find(c => c.id === myCohortId)
-    let query = supabase
+    const { data } = await supabase
       .from('feed')
       .select('*, profiles(*), comments(*, profiles(nickname))')
       .order('created_at', { ascending: false })
-    if (myCohortId) {
-      if (currentCohort?.is_open) {
-        const openIds = cohorts.filter(c => c.is_open).map(c => c.id)
-        query = query.in('cohort_id', openIds.length > 0 ? openIds : [myCohortId])
-      } else {
-        query = query.eq('cohort_id', myCohortId)
-      }
-    }
-    // myCohortId=0 이면 전체 피드 로드 (기수 없는 유저/관리자)
-    const { data } = await query.limit(100)
+      .limit(100)
     if (data) setFeed(data as FeedItem[])
   }
 
@@ -297,38 +267,6 @@ export default function App({ session }: { session: any }) {
       setReactions(myR)
     }
   }
-  const loadCohortCounts = async () => {
-    const { data } = await supabase.from('profiles').select('cohort_id').eq('is_approved', true)
-    if (data) {
-      const counts: Record<number, number> = {}
-      data.forEach(p => { if (p.cohort_id) counts[p.cohort_id] = (counts[p.cohort_id] || 0) + 1 })
-      setCohortCounts(counts)
-    }
-  }
-  const loadCohortMembers = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .not('nickname', 'is', null)
-      .order('created_at', { ascending: true })
-    if (data) setCohortMembers(data as Profile[])
-  }
-  const loadApplications = async () => {
-    const { data } = await supabase
-      .from('recruit_applications')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (data) setApplications(data)
-  }
-
-  const loadPending = async () => {
-    const { data } = await supabase
-      .from('pending_members')
-      .select('*, profiles(*)')
-      .order('created_at')
-    if (data) setPendingMembers(data)
-  }
-
   const loadFollowings = async () => {
     const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
     if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
@@ -389,8 +327,6 @@ export default function App({ session }: { session: any }) {
   useEffect(() => {
     loadProfile()
     loadCohorts()
-    loadCohortCounts()
-    loadCohortMembers()
     loadFollowings()
     fetchQuestion()
     const onOnline = () => setIsOnline(true)
@@ -461,9 +397,6 @@ export default function App({ session }: { session: any }) {
     }
   }, [myCohortId])
 
-  useEffect(() => {
-    if (isAdmin) { loadPending(); loadApplications() }
-  }, [isAdmin])
 
   useEffect(() => {
     const channel = supabase.channel('realtime')
@@ -797,21 +730,6 @@ export default function App({ session }: { session: any }) {
     setShowProfileSetup(false)
   }
 
-  const submitApplication = async () => {
-    if (!applyForm.name.trim() || !applyForm.pledge.trim()) return
-    setApplySubmitting(true)
-    await supabase.from('recruit_applications').insert({
-      user_id: session.user.id,
-      cohort_id: applyCohortId,
-      nickname: profile?.nickname || '',
-      name: applyForm.name.trim(),
-      pledge: applyForm.pledge.trim(),
-      status: 'pending',
-    })
-    setApplySubmitting(false)
-    setApplyDone(true)
-  }
-
   const openShare = (item: any, type: 'feed' | 'lounge') => {
     const name = (item.profiles as Profile)?.nickname || ''
     const url = `${window.location.origin}/${type}/${item.id}`
@@ -846,13 +764,6 @@ export default function App({ session }: { session: any }) {
     setShowAdmin(false); loadNotice()
   }
 
-  const approveMember = async (pendingId: number, userId: string, targetCohortId: number) => {
-    await supabase.from('profiles').update({ cohort_id: targetCohortId, is_approved: true }).eq('id', userId)
-    await supabase.from('pending_members').delete().eq('id', pendingId)
-    loadPending()
-    loadCohortMembers()
-  }
-
   const startNewRound = async () => {
     const newRound = (profile?.challenge_round || 1) + 1
     await supabase.from('profiles').update({
@@ -860,12 +771,6 @@ export default function App({ session }: { session: any }) {
       challenge_round: newRound,
     }).eq('id', session.user.id)
     await loadProfile()
-  }
-
-  const saveCohort = async () => {
-    if (!editingCohort) return
-    await supabase.from('cohorts').update({ start_date: editingCohort.start_date, end_date: editingCohort.end_date, status: editingCohort.status, max_slots: editingCohort.max_slots }).eq('id', editingCohort.id)
-    setEditingCohort(null); loadCohorts()
   }
 
   const saveProfileEdit = async () => {
@@ -1276,25 +1181,14 @@ export default function App({ session }: { session: any }) {
   }
 
   const renderToday = () => {
-    const myCohortMemberCount = cohortMembers.filter(m => m.cohort_id === myCohortId).length
-    const todayStr = getKSTDateString()
     return (
     <>
       {todayCompletionCount > 0 && (
         <div style={{ margin: '14px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔥</span>
           <div style={{ flex: 1 }}>
-            {profile?.cohort_id ? (
-              <>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>우리 기수 {todayCompletionCount}/{myCohortMemberCount}명</span>
-                <span style={{ fontSize: 13, color: 'var(--ink2)' }}> 완료!</span>
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
-                <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
-              </>
-            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
+            <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
           </div>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)', whiteSpace: 'nowrap' as const }}>나도 하기!</span>
         </div>
@@ -1400,7 +1294,7 @@ export default function App({ session }: { session: any }) {
         </div>
       </div>
       {feedFilter === 'following' && followings.size === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>팔로우한 멤버가 없어요. 그룹 탭에서 팔로우해보세요!</div>
+        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>팔로우한 멤버가 없어요. 멤버 프로필을 눌러 팔로우해보세요!</div>
       )}
       {displayFeed.map((item, index) => (
         <div key={item.id}>
@@ -1493,11 +1387,6 @@ export default function App({ session }: { session: any }) {
               <div className="lc-top">
                 <div className="av" style={{ width: 30, height: 30, fontSize: 11, background: mp?.color || '#333' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname?.[0] || '?'}</div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', cursor: 'pointer' }} onClick={() => setSelectedProfile(mp)}>{mp?.nickname}</span>
-                {mp?.cohort_id && getCohortLabel(mp.cohort_id) && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: cohortColors[(mp.cohort_id - 1) % cohortColors.length], padding: '2px 6px', borderRadius: 20, flexShrink: 0 }}>
-                    {getCohortLabel(mp.cohort_id)}
-                  </span>
-                )}
                 {isMe && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20, marginLeft: 4 }}>나</span>}
                 <span style={{ fontSize: 10, color: 'var(--ink3)', marginLeft: 'auto' }}>{formatTime(post.created_at)}</span>
                 {isMe && <>
@@ -1734,212 +1623,6 @@ export default function App({ session }: { session: any }) {
     )
   }
 
-  const renderPlaza = () => {
-    const byCohort: Record<string, Profile[]> = {}
-    cohortMembers.forEach(m => {
-      if (!m.cohort_id) return
-      const key = String(m.cohort_id)
-      if (!byCohort[key]) byCohort[key] = []
-      byCohort[key].push(m)
-    })
-    const standaloneMembers = cohortMembers.filter(m => !m.cohort_id)
-    const todayStr = getKSTDateString()
-    const recruitingCohort = cohorts.find(c => c.is_recruiting)
-    const showCTA = !isAdmin && !profile?.cohort_id && !!recruitingCohort
-
-    const renderMemberCard = (m: Profile, accentColor: string) => {
-      const doneToday = feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
-      return (
-        <div key={m.id} onClick={() => setSelectedProfile(m)}
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 11, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: 'white', border: doneToday ? `2.5px solid ${accentColor}` : '2px solid transparent' }}>
-              {m.nickname?.[0] || '?'}
-            </div>
-            {doneToday && <span style={{ position: 'absolute', bottom: -3, right: -3, fontSize: 10, lineHeight: 1 }}>✅</span>}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</div>
-            {m.intro
-              ? <div style={{ fontSize: 11, color: 'var(--ink3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.intro}</div>
-              : <div style={{ fontSize: 11, color: 'var(--border2)' }}>소개 없음</div>
-            }
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', flexShrink: 0 }}>{m.streak || 0}일 🔥</div>
-        </div>
-      )
-    }
-
-    return (
-      <>
-        {/* 히어로 배너 */}
-        <div style={{ margin: '16px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '20px', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: -20, right: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '2px', textTransform: 'uppercase' as const, marginBottom: 4 }}>OORAJOO CHALLENGE</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: 'white', marginBottom: 6, letterSpacing: '-0.5px' }}>우라주 광장 🌍</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-            모든 멤버들이 모여있어요.<br />총 {cohortMembers.length}명이 함께 성장 중이에요.
-          </div>
-        </div>
-
-        {/* 스트릭 TOP5 */}
-        <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '15px', boxShadow: 'var(--sh)' }}>
-          <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 12 }}>🏆 스트릭 TOP 5</div>
-          {[...cohortMembers].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 5).map((m, i) => (
-            <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: i < 4 ? 10 : 0, cursor: 'pointer' }}>
-              <div style={{ width: 22, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
-                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--ink3)' }}>{i + 1}</span>}
-              </div>
-              <div style={{ width: 32, height: 32, borderRadius: 10, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: 'white', flexShrink: 0 }}>
-                {m.nickname?.[0]}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</span>
-                  {m.cohort_id && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: cohortColors[(m.cohort_id - 1) % cohortColors.length], padding: '1px 6px', borderRadius: 20 }}>
-                      {getCohortLabel(m.cohort_id)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>{m.streak || 0}일 🔥</div>
-            </div>
-          ))}
-        </div>
-
-        {/* 기수 미참여 유저 신청 CTA */}
-        {showCTA && (
-          <div style={{ margin: '12px 16px 0', background: 'var(--black)', borderRadius: 'var(--r2)', padding: '18px 16px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(74,222,128,0.10) 0%, transparent 60%)', pointerEvents: 'none' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', display: 'inline-block', boxShadow: '0 0 0 3px rgba(74,222,128,0.25)' }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '1px' }}>모집 중</span>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 900, color: 'white', marginBottom: 4 }}>다음 기수에 함께해요</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
-              {recruitingCohort!.title || '다음 기수'} · 소수 정예 · 30일 챌린지
-            </div>
-            <button
-              onClick={() => { setApplyForm({ name: '', pledge: '' }); setApplyDone(false); setApplyCohortId(recruitingCohort!.id); setShowApplyModal(true) }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: 20, padding: '8px 18px', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              신청하기 →
-            </button>
-          </div>
-        )}
-
-        {/* 기수별 멤버 카드 */}
-        {cohorts.map(cohort => {
-          const members = byCohort[String(cohort.id)] || []
-          if (members.length === 0) return null
-          const color = cohortColors[(cohort.id - 1) % cohortColors.length]
-          const completedToday = members.filter(m =>
-            feed.some(f => f.user_id === m.id && f.created_at >= todayStr + 'T00:00:00+09:00')
-          ).length
-          return (
-            <div key={cohort.id} style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
-              <div style={{ background: color, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>{cohort.title || `${cohort.id}기`}</span>
-                    {cohort.is_open && <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,0.2)', color: 'white', padding: '2px 7px', borderRadius: 20 }}>상시</span>}
-                  </div>
-                  {cohort.description && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>{cohort.description}</div>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{members.length}명</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>오늘 {completedToday}명 완료</div>
-                </div>
-              </div>
-              <div style={{ height: 3, background: 'rgba(0,0,0,0.06)' }}>
-                <div style={{ height: '100%', background: color, transition: 'width 0.5s', width: members.length > 0 ? `${(completedToday / members.length) * 100}%` : '0%' }} />
-              </div>
-              <div style={{ padding: '0 14px' }}>
-                {members.map(m => renderMemberCard(m, color))}
-                {cohort.is_recruiting && (
-                  <div style={{ margin: '10px 0', background: 'var(--surface)', borderRadius: 10, padding: '10px 13px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>🎉 지금 모집 중이에요!</div>
-                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>함께 30일 챌린지 도전해봐요</div>
-                    </div>
-                    <button
-                      onClick={() => { setApplyForm({ name: '', pledge: '' }); setApplyDone(false); setApplyCohortId(cohort.id); setShowApplyModal(true) }}
-                      style={{ background: color, color: 'white', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, cursor: 'pointer', flexShrink: 0 }}>
-                      신청하기
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-
-        {/* 상시 멤버 섹션 */}
-        {standaloneMembers.length > 0 && (
-          <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', overflow: 'hidden', boxShadow: 'var(--sh)' }}>
-            <div style={{ background: '#4A4A4A', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <span style={{ fontSize: 15, fontWeight: 900, color: 'white' }}>상시 멤버</span>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>기수 없이 자유롭게 참여 중</div>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'white' }}>{standaloneMembers.length}명</div>
-            </div>
-            <div style={{ padding: '0 14px' }}>
-              {standaloneMembers.map(m => renderMemberCard(m, '#4A4A4A'))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ height: 20 }} />
-      </>
-    )
-  }
-
-  const renderGroup = () => (
-    <>
-      <div className="group-hero">
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 5 }}>
-          <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.8px', color: 'var(--black)' }}>우라주<br />챌린지</div>
-          <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--black)', color: 'white', padding: '4px 11px', borderRadius: 20 }}>{isEnded ? '챌린지 완료 🎉' : `Day ${challengeDay} / 30`}</span>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 13 }}>
-          {`${challengeStartDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 시작`}
-          {' — '}
-          {`${new Date(challengeStartDate.getTime() + 29 * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 완료`}
-        </div>
-        <div style={{ height: 3, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', marginBottom: 5 }}>
-          <div style={{ height: '100%', background: 'var(--black)', borderRadius: 3, width: `${Math.min(100, (challengeDay / 30) * 100)}%` }} />
-        </div>
-      </div>
-      <div className="sec-label">멤버 소개<span className="sec-sub">{cohortMembers.length}명</span></div>
-      {cohortMembers.length === 0 && <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 멤버가 없어요</div>}
-      {cohortMembers.map(m => (
-        <div key={m.id} className="mc" onClick={() => setSelectedProfile(m)}>
-          <div className="mc-top">
-            <div className="mc-av" style={{ background: m.color || '#333' }}>{m.nickname?.[0] || '?'}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</span>
-                {(m.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '2px 7px', borderRadius: 20 }}>{m.challenge_round}R</span>}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥 · {getLevel(m.points || 0).title}</div>
-            </div>
-            {m.id === session.user.id
-              ? <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>
-              : <button onClick={e => toggleFollow(m.id, e)} style={{ fontSize: 11, fontWeight: 700, border: followings.has(m.id) ? '1.5px solid var(--border)' : '1.5px solid var(--black)', borderRadius: 20, padding: '4px 11px', background: followings.has(m.id) ? 'var(--surface)' : 'var(--black)', color: followings.has(m.id) ? 'var(--ink2)' : 'white', cursor: 'pointer', flexShrink: 0 }}>{followings.has(m.id) ? '팔로잉' : '+ 팔로우'}</button>
-            }
-          </div>
-          {m.intro && <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.7, marginBottom: 6 }}>{m.intro}</div>}
-          {(m.tags || []).length > 0 && (
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              {m.tags.map((t: string, i: number) => <span key={i} style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 20 }}>{t}</span>)}
-            </div>
-          )}
-        </div>
-      ))}
-    </>
-  )
-
   const renderSettings = () => (
     <>
       <div style={{ padding: '18px 16px 0' }}>
@@ -1989,6 +1672,9 @@ export default function App({ session }: { session: any }) {
         <div className="settings-title">서비스</div>
         <div className="settings-card">
           <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">oorajoo@naver.com</div></div></div>
+          <a href="/challenge" style={{ textDecoration: 'none', display: 'block' }}>
+            <div className="settings-row"><div><div className="settings-row-label">기수 챌린지 →</div><div className="settings-row-sub">기수별 챌린지 소개 및 신청</div></div></div>
+          </a>
         </div>
       </div>
       <div className="settings-section">
@@ -2008,14 +1694,8 @@ export default function App({ session }: { session: any }) {
       <div className="admin-panel">
         <div className="admin-handle" />
         <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 14 }}>관리자 패널</div>
-        <div className="admin-tabs">
-          <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
-          <button className={`admin-tab${adminTab === 'cohort' ? ' on' : ''}`} onClick={() => setAdminTab('cohort')}>기수관리</button>
-          <button className={`admin-tab${adminTab === 'apply' ? ' on' : ''}`} onClick={() => { setAdminTab('apply'); loadApplications() }}>신청자</button>
-        </div>
 
-        {adminTab === 'notice' && (<>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>제목</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>제목</div>
           <input className="admin-input" placeholder="공지 제목" value={adminForm.title} onChange={e => setAdminForm(p => ({ ...p, title: e.target.value }))} />
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>내용</div>
           <textarea className="admin-ta" rows={3} placeholder="내용을 입력하세요" value={adminForm.body} onChange={e => setAdminForm(p => ({ ...p, body: e.target.value }))} />
@@ -2036,95 +1716,6 @@ export default function App({ session }: { session: any }) {
           {notice && (
             <button onClick={async () => { if (!confirm('공지를 삭제할까요?')) return; await supabase.from('notices').delete().eq('id', notice.id); setNotice(null) }} style={{ width: '100%', background: 'none', border: '1px solid #DC2626', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, color: '#DC2626', cursor: 'pointer', marginTop: 8 }}>현재 공지 삭제</button>
           )}
-        </>)}
-
-        {adminTab === 'cohort' && (
-          <>
-            {cohorts.map(cohort => (
-              <div key={cohort.id} style={{ background: 'var(--surface)', borderRadius: 12, padding: 13, marginBottom: 10, border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 900 }}>{cohort.title || `${cohort.id}기`}</span>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: cohort.is_open ? '#DCFCE7' : '#DBEAFE', color: cohort.is_open ? '#16A34A' : '#1D4ED8' }}>{cohort.is_open ? '상시' : '정식기수'}</span>
-                    <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{cohortCounts[cohort.id] || 0}명</span>
-                  </div>
-                </div>
-                <input className="admin-input" style={{ marginBottom: 6 }} placeholder="기수 이름 (예: 1기, 봄기수)" defaultValue={cohort.title || ''} id={`ct-${cohort.id}`} />
-                <input className="admin-input" style={{ marginBottom: 6 }} placeholder="기수 소개" defaultValue={cohort.description || ''} id={`cd-${cohort.id}`} />
-                <input className="admin-input" style={{ marginBottom: 8 }} placeholder="모집 링크" defaultValue={cohort.recruit_link || ''} id={`cl-${cohort.id}`} />
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700 }}>상시 운영</span>
-                    <button className={`toggle-btn ${cohort.is_open ? 'on' : 'off'}`} onClick={async () => { await supabase.from('cohorts').update({ is_open: !cohort.is_open }).eq('id', cohort.id); loadCohorts() }}><div className="toggle-dot" /></button>
-                  </div>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700 }}>모집 중</span>
-                    <button className={`toggle-btn ${cohort.is_recruiting ? 'on' : 'off'}`} onClick={async () => { await supabase.from('cohorts').update({ is_recruiting: !cohort.is_recruiting }).eq('id', cohort.id); loadCohorts() }}><div className="toggle-dot" /></button>
-                  </div>
-                </div>
-                <button onClick={async () => {
-                  const title = (document.getElementById(`ct-${cohort.id}`) as HTMLInputElement)?.value
-                  const desc = (document.getElementById(`cd-${cohort.id}`) as HTMLInputElement)?.value
-                  const link = (document.getElementById(`cl-${cohort.id}`) as HTMLInputElement)?.value
-                  await supabase.from('cohorts').update({ title, description: desc, recruit_link: link || null }).eq('id', cohort.id)
-                  loadCohorts(); showToast('저장됐어요 ✓')
-                }} style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>저장</button>
-              </div>
-            ))}
-            <button onClick={async () => {
-              const maxId = cohorts.reduce((max, c) => Math.max(max, c.id), 0)
-              await supabase.from('cohorts').insert({ start_date: new Date().toISOString().split('T')[0], end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], status: 'active', max_slots: 20, title: `${maxId + 1}기`, is_open: false })
-              loadCohorts(); showToast(`${maxId + 1}기 생성됐어요!`)
-            }} style={{ width: '100%', background: 'none', border: '2px dashed var(--border)', borderRadius: 12, padding: 13, fontSize: 13, fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer' }}>
-              + 새 기수 만들기
-            </button>
-          </>
-        )}
-
-        {adminTab === 'apply' && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 10 }}>
-              신청자 목록 ({applications.length}명)
-            </div>
-            {applications.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 신청자가 없어요</div>
-            )}
-            {applications.map(app => (
-              <div key={app.id} style={{ background: 'var(--surface)', borderRadius: 12, padding: 13, marginBottom: 8, border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>{app.nickname}</span>
-                    <span style={{ fontSize: 11, color: 'var(--ink3)', marginLeft: 6 }}>{app.name}</span>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: app.status === 'approved' ? '#DCFCE7' : app.status === 'rejected' ? '#FEE2E2' : 'var(--border)', color: app.status === 'approved' ? '#16A34A' : app.status === 'rejected' ? '#DC2626' : 'var(--ink3)' }}>
-                    {app.status === 'approved' ? '승인' : app.status === 'rejected' ? '거절' : '대기중'}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{app.email}</div>
-                <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.6, marginBottom: app.status === 'pending' ? 10 : 0, background: 'var(--white)', borderRadius: 8, padding: '8px 10px', border: '1px solid var(--border)' }}>
-                  "{app.pledge}"
-                </div>
-                {app.status === 'pending' && (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                    <button onClick={async () => {
-                      await supabase.from('recruit_applications').update({ status: 'approved' }).eq('id', app.id)
-                      loadApplications()
-                      showToast(`${app.nickname}님 승인됐어요 ✓`)
-                    }} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                      승인
-                    </button>
-                    <button onClick={async () => {
-                      await supabase.from('recruit_applications').update({ status: 'rejected' }).eq('id', app.id)
-                      loadApplications()
-                    }} style={{ flex: 1, background: 'none', border: '1px solid #DC2626', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer' }}>
-                      거절
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </>
-        )}
 
       </div>
     </div>
@@ -2183,12 +1774,10 @@ export default function App({ session }: { session: any }) {
         {tab === 'today' && renderToday()}
         {tab === 'lounge' && renderLounge()}
         {tab === 'record' && renderRecord()}
-        {tab === 'plaza' && renderPlaza()}
-        {tab === 'group' && renderGroup()}
         {tab === 'settings' && renderSettings()}
 
         <div className="tab-bar">
-          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['plaza', 'globe', '광장'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
+          {[['today', 'sprout', '오늘'], ['lounge', 'sun', '라운지'], ['record', 'calendar', '기록'], ['settings', 'settings', '설정']].map(([k, icon, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>
               <Icon name={icon} size={17} color={tab === k ? 'white' : 'var(--ink3)'} />
               <span>{label}</span>
@@ -2370,57 +1959,6 @@ export default function App({ session }: { session: any }) {
                 {profileSetupSaving ? '저장 중...' : '저장하기'}
               </button>
               <button onClick={skipProfileSetup} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>건너뛰기</button>
-            </div>
-          </div>
-        )}
-
-        {showApplyModal && (
-          <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) setShowApplyModal(false) }}>
-            <div className="modal">
-              <div className="modal-handle" />
-              {applyDone ? (
-                <>
-                  <div style={{ textAlign: 'center', padding: '12px 0 20px' }}>
-                    <div style={{ fontSize: 36, marginBottom: 12 }}>🌿</div>
-                    <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--black)', marginBottom: 8 }}>신청 완료!</div>
-                    <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.7 }}>
-                      승인까지 보통 24시간 이내예요.<br />그동안 자유롭게 기록해봐요 🌿
-                    </div>
-                  </div>
-                  <button onClick={() => setShowApplyModal(false)} style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer' }}>확인</button>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 4 }}>기수 신청하기</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 18 }}>
-                    {cohorts.find(c => c.id === applyCohortId)?.title || `${applyCohortId}기`} · 30일 챌린지
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>이름 (실명) *</div>
-                  <input
-                    style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 13px', fontSize: 14, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, marginBottom: 14 }}
-                    placeholder="홍길동"
-                    value={applyForm.name}
-                    onChange={e => setApplyForm(p => ({ ...p, name: e.target.value }))}
-                    maxLength={20}
-                  />
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>30일 다짐 한 줄 *</div>
-                  <textarea
-                    style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 13px', fontSize: 14, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, resize: 'none', marginBottom: 20 }}
-                    rows={3}
-                    placeholder="30일 동안 꼭 이루고 싶은 것, 또는 챌린지에 임하는 각오를 적어주세요."
-                    value={applyForm.pledge}
-                    onChange={e => setApplyForm(p => ({ ...p, pledge: e.target.value }))}
-                    maxLength={200}
-                  />
-                  <button
-                    onClick={submitApplication}
-                    disabled={!applyForm.name.trim() || !applyForm.pledge.trim() || applySubmitting}
-                    style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer', opacity: !applyForm.name.trim() || !applyForm.pledge.trim() ? 0.4 : 1, marginBottom: 8 }}>
-                    {applySubmitting ? '신청 중...' : '신청하기 🌿'}
-                  </button>
-                  <button onClick={() => setShowApplyModal(false)} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>취소</button>
-                </>
-              )}
             </div>
           </div>
         )}
