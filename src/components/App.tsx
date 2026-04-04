@@ -134,8 +134,6 @@ export default function App({ session }: { session: any }) {
   const [postImage, setPostImage] = useState<File | null>(null)
   const [postImagePreview, setPostImagePreview] = useState<string | null>(null)
   const [showPostInput, setShowPostInput] = useState(false)
-  const [cheerInput, setCheerInput] = useState('')
-  const [cheerPosting, setCheerPosting] = useState(false)
 
   // UI
   const [expandedComments, setExpandedComments] = useState<Record<number, boolean>>({})
@@ -193,7 +191,7 @@ export default function App({ session }: { session: any }) {
     : (viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0)
   const myCohort = cohorts.find(c => c.id === myCohortId)
   const isEnded = myCohort?.status === 'ended'
-  const myFeed = feed.filter(f => f.cohort_id === myCohortId)
+  const myFeed = myCohortId ? feed.filter(f => f.cohort_id === myCohortId) : feed
   const displayFeed = feedFilter === 'following' && followings.size > 0
     ? myFeed.filter(f => f.user_id === session.user.id || followings.has(f.user_id))
     : myFeed
@@ -248,19 +246,21 @@ export default function App({ session }: { session: any }) {
     }
   }
   const loadFeed = async () => {
-    if (!myCohortId) return
     const currentCohort = cohorts.find(c => c.id === myCohortId)
     let query = supabase
       .from('feed')
       .select('*, profiles(*), comments(*, profiles(nickname))')
       .order('created_at', { ascending: false })
-    if (currentCohort?.is_open) {
-      const openIds = cohorts.filter(c => c.is_open).map(c => c.id)
-      query = query.in('cohort_id', openIds.length > 0 ? openIds : [myCohortId])
-    } else {
-      query = query.eq('cohort_id', myCohortId)
+    if (myCohortId) {
+      if (currentCohort?.is_open) {
+        const openIds = cohorts.filter(c => c.is_open).map(c => c.id)
+        query = query.in('cohort_id', openIds.length > 0 ? openIds : [myCohortId])
+      } else {
+        query = query.eq('cohort_id', myCohortId)
+      }
     }
-    const { data } = await query
+    // myCohortId=0 이면 전체 피드 로드 (기수 없는 유저/관리자)
+    const { data } = await query.limit(100)
     if (data) setFeed(data as FeedItem[])
   }
 
@@ -448,16 +448,16 @@ export default function App({ session }: { session: any }) {
   }, [profileLoaded])
 
   useEffect(() => {
+    // 코호트 없는 유저(관리자 포함)도 피드/라운지 로드
+    loadFeed()
+    loadLounge()
+    checkTodaySubmitted()
+    loadFollowings()
+    loadWeeklyStats()
     if (myCohortId) {
-      loadFeed()
-      loadLounge()
       loadNotice()
-      checkTodaySubmitted()
       loadReactions()
-      loadCohortMembers()
-      loadFollowings()
       loadTodayCompletion()
-      loadWeeklyStats()
     }
   }, [myCohortId])
 
@@ -810,21 +810,6 @@ export default function App({ session }: { session: any }) {
     })
     setApplySubmitting(false)
     setApplyDone(true)
-  }
-
-  const submitCheer = async () => {
-    if (!cheerInput.trim() || !profile?.cohort_id) return
-    setCheerPosting(true)
-    await supabase.from('lounge').insert({
-      user_id: session.user.id,
-      cohort_id: profile.cohort_id,
-      content: cheerInput.trim(),
-      tag: '#기수응원',
-      image_url: null,
-    })
-    setCheerInput('')
-    setCheerPosting(false)
-    loadLounge()
   }
 
   const openShare = (item: any, type: 'feed' | 'lounge') => {
@@ -1293,10 +1278,6 @@ export default function App({ session }: { session: any }) {
   const renderToday = () => {
     const myCohortMemberCount = cohortMembers.filter(m => m.cohort_id === myCohortId).length
     const todayStr = getKSTDateString()
-    const cheerMessages = lounge.filter(p =>
-      p.tag === '#기수응원' && p.cohort_id === myCohortId
-    ).slice(0, 5)
-
     return (
     <>
       {todayCompletionCount > 0 && (
@@ -1406,50 +1387,6 @@ export default function App({ session }: { session: any }) {
           </div>
         )}
       </div>
-
-      {/* 기수 응원 한마디 — 기수 멤버 전용 */}
-      {profile?.cohort_id && !isEnded && (
-        <div style={{ margin: '12px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--sh)' }}>
-          <div style={{ padding: '11px 14px 0' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginBottom: 8 }}>💬 기수 응원 한마디</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit' }}
-                placeholder="기수 멤버들에게 한마디!"
-                value={cheerInput}
-                onChange={e => setCheerInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && submitCheer()}
-                maxLength={60}
-              />
-              <button
-                onClick={submitCheer}
-                disabled={!cheerInput.trim() || cheerPosting}
-                style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '0 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !cheerInput.trim() ? 0.4 : 1, flexShrink: 0 }}>
-                전송
-              </button>
-            </div>
-          </div>
-          {cheerMessages.length > 0 && (
-            <div style={{ padding: '8px 14px 11px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {cheerMessages.map(post => {
-                const poster = post.profiles as Profile
-                return (
-                  <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 7, background: poster?.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: 'white', flexShrink: 0 }}>
-                      {poster?.nickname?.[0] || '?'}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink2)', marginRight: 5 }}>{poster?.nickname}</span>
-                      <span style={{ fontSize: 12, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{post.content}</span>
-                    </div>
-                    <span style={{ fontSize: 10, color: 'var(--ink3)', flexShrink: 0 }}>{formatTime(post.created_at)}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="sec-label">
         {isEnded ? '지난 기록 보관함' : '멤버들의 오늘'}
