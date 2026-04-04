@@ -988,7 +988,8 @@ export default function App({ session }: { session: any }) {
       <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', flexDirection: 'column', fontFamily: "'Noto Sans KR', system-ui" }}>
         <div style={{ padding: '50px 28px 32px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', marginBottom: 12 }}>시작하기</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: 'white', lineHeight: 1.3, letterSpacing: '-0.5px' }}>나는 이런<br />사람이에요!</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: 'white', lineHeight: 1.3, letterSpacing: '-0.5px' }}>우라주 챌린지에<br />오신 걸 환영해요</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>매일 감사·목표를 기록하며 나를 성장시켜요</div>
         </div>
         <div style={{ flex: 1, background: '#F7F7F7', borderRadius: '24px 24px 0 0', padding: '28px 22px', overflowY: 'auto' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>닉네임 *</div>
@@ -1041,7 +1042,7 @@ export default function App({ session }: { session: any }) {
           </div>
 
           <button className="ob-btn" onClick={saveProfile} disabled={!obNickname.trim() || obSaving}>
-            {obSaving ? '저장 중...' : '챌린지 시작하기 🌿'}
+            {obSaving ? '저장 중...' : '시작하기 🌿'}
           </button>
         </div>
       </div>
@@ -1182,12 +1183,13 @@ export default function App({ session }: { session: any }) {
             {submitted ? (
                 <div className="wc-done">
                   <div className="wc-done-icon"><Icon name="check" size={22} color="var(--black)" /></div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>공유 완료!</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>오늘도 기록했어요 ✓</div>
                   <div className="wc-done-cheer">
                     {cheerLoading ? (
                       <span style={{ color: 'var(--ink3)' }}>응원 문구 생성 중...</span>
                     ) : (aiCheer || cheerMsg)}
                   </div>
+                  <button onClick={() => setTab('record')} style={{ marginTop: 12, width: '100%', background: 'none', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--ink2)', cursor: 'pointer' }}>오늘 기록 보기</button>
                 </div>
               ) : (
                 <>
@@ -1777,7 +1779,7 @@ export default function App({ session }: { session: any }) {
             <div className="hdr-sub">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</div>
           </div>
           <div className="hdr-r">
-            <div className="hdr-chip">Day {challengeDay} / 30</div>
+            <div className="hdr-chip">{challengeEnded ? '완주 🎉' : `Day ${challengeDay} / 30`}</div>
           </div>
         </div>
 
