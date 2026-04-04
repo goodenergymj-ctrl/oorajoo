@@ -773,7 +773,7 @@ export default function App({ session }: { session: any }) {
     setSavingProfile(false)
     if (error) { alert('저장 실패: ' + error.message); return }
     setProfile(p => p ? { ...p, ...updates } : p)
-    setCohortMembers(prev => prev.map(m => m.id === session.user.id ? { ...m, ...updates } : m))
+    setMembers(prev => prev.map(m => m.id === session.user.id ? { ...m, ...updates } : m))
     setEditingProfile(false)
     setSelectedProfile(null)
     showToast('프로필이 수정됐어요 ✓')
