@@ -95,6 +95,14 @@ export default function Auth() {
     setOnboardingDone(true)
   }
 
+  const goToSignup = () => {
+    localStorage.removeItem('oorajoo_onboarding')
+    setOnboardingDone(false)
+    setSlide(0)
+    setMode('signup')
+    setMessage('')
+  }
+
   const handleSubmit = async () => {
     setLoading(true)
     setMessage('')
@@ -262,7 +270,7 @@ export default function Auth() {
             <>
               <div style={{ marginBottom: 8 }}>
                 <span>아직 계정이 없어요?{' '}
-                  <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={() => { setMode('signup'); setMessage('') }}>가입하기</button>
+                  <button style={{ color: '#0A0A0A', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none', fontSize: 13, fontFamily: 'inherit' }} onClick={goToSignup}>가입하기</button>
                 </span>
               </div>
               <div>
