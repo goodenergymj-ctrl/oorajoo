@@ -170,6 +170,9 @@ export default function App({ session }: { session: any }) {
   const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
   const [showBadgePopup, setShowBadgePopup] = useState(false)
   const [weeklyStats, setWeeklyStats] = useState<{ thisWeek: number; lastWeek: number }>({ thisWeek: 0, lastWeek: 0 })
+  const [cohorts, setCohorts] = useState<any[]>([])
+  const [cohortEdits, setCohortEdits] = useState<Record<number, any>>({})
+  const [adminTab, setAdminTab] = useState<'notice' | 'cohort'>('notice')
   const [showChallengeModal, setShowChallengeModal] = useState(false)
   const [recruitingCohort, setRecruitingCohort] = useState<any>(null)
   const [applyName, setApplyName] = useState('')
@@ -281,6 +284,16 @@ export default function App({ session }: { session: any }) {
   const loadFollowings = async () => {
     const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
     if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
+  }
+
+  const loadCohorts = async () => {
+    const { data } = await supabase.from('cohorts').select('*').order('id')
+    if (data) {
+      setCohorts(data)
+      const edits: Record<number, any> = {}
+      data.forEach((c: any) => { edits[c.id] = { ...c } })
+      setCohortEdits(edits)
+    }
   }
 
   const loadRecruitingCohort = async () => {
@@ -419,6 +432,10 @@ export default function App({ session }: { session: any }) {
     loadWeeklyStats()
     loadRecruitingCohort()
   }, [])
+
+  useEffect(() => {
+    if (isAdmin) loadCohorts()
+  }, [isAdmin])
 
 
   useEffect(() => {
@@ -1820,7 +1837,13 @@ export default function App({ session }: { session: any }) {
         <div className="admin-handle" />
         <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 14 }}>관리자 패널</div>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>제목</div>
+        <div className="admin-tabs">
+          <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
+          <button className={`admin-tab${adminTab === 'cohort' ? ' on' : ''}`} onClick={() => setAdminTab('cohort')}>기수 관리</button>
+        </div>
+
+        {adminTab === 'notice' && <>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>제목</div>
           <input className="admin-input" placeholder="공지 제목" value={adminForm.title} onChange={e => setAdminForm(p => ({ ...p, title: e.target.value }))} />
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>내용</div>
           <textarea className="admin-ta" rows={3} placeholder="내용을 입력하세요" value={adminForm.body} onChange={e => setAdminForm(p => ({ ...p, body: e.target.value }))} />
@@ -1841,6 +1864,69 @@ export default function App({ session }: { session: any }) {
           {notice && (
             <button onClick={async () => { if (!confirm('공지를 삭제할까요?')) return; await supabase.from('notices').delete().eq('id', notice.id); setNotice(null) }} style={{ width: '100%', background: 'none', border: '1px solid #DC2626', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, color: '#DC2626', cursor: 'pointer', marginTop: 8 }}>현재 공지 삭제</button>
           )}
+        </>}
+
+        {adminTab === 'cohort' && <>
+          {cohorts.map(cohort => {
+            const e = cohortEdits[cohort.id] || cohort
+            const setE = (patch: any) => setCohortEdits(p => ({ ...p, [cohort.id]: { ...p[cohort.id], ...patch } }))
+            return (
+              <div key={cohort.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 10 }}>기수 #{cohort.id}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 5 }}>기수명</div>
+                <input className="admin-input" value={e.title || ''} onChange={ev => setE({ title: ev.target.value })} placeholder={`${cohort.id}기`} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 5 }}>시작일</div>
+                    <input className="admin-input" type="date" value={e.start_date || ''} onChange={ev => setE({ start_date: ev.target.value })} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 5 }}>종료일</div>
+                    <input className="admin-input" type="date" value={e.end_date || ''} onChange={ev => setE({ end_date: ev.target.value })} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 5 }}>모집 마감일</div>
+                <input className="admin-input" type="date" value={e.recruit_deadline || ''} onChange={ev => setE({ recruit_deadline: ev.target.value })} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 5 }}>정원</div>
+                <input className="admin-input" type="number" value={e.max_slots || 12} onChange={ev => setE({ max_slots: Number(ev.target.value) })} />
+                <div className="admin-toggle">
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)', flex: 1 }}>모집 중</span>
+                  <button className={`toggle-btn ${e.is_recruiting ? 'on' : 'off'}`} onClick={() => setE({ is_recruiting: !e.is_recruiting })}><div className="toggle-dot" /></button>
+                </div>
+                <button
+                  style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 900, cursor: 'pointer' }}
+                  onClick={async () => {
+                    await supabase.from('cohorts').update({
+                      title: e.title,
+                      start_date: e.start_date || null,
+                      end_date: e.end_date || null,
+                      recruit_deadline: e.recruit_deadline || null,
+                      max_slots: e.max_slots,
+                      is_recruiting: e.is_recruiting,
+                    }).eq('id', cohort.id)
+                    loadCohorts()
+                    showToast('저장됐어요 ✓')
+                  }}
+                >저장</button>
+              </div>
+            )
+          })}
+          <button
+            style={{ width: '100%', background: 'var(--surface)', color: 'var(--black)', border: '1.5px dashed var(--border2)', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            onClick={async () => {
+              await supabase.from('cohorts').insert({
+                title: `${cohorts.length + 1}기`,
+                start_date: null,
+                end_date: null,
+                recruit_deadline: null,
+                max_slots: 12,
+                is_recruiting: false,
+                status: 'active',
+              })
+              loadCohorts()
+            }}
+          >+ 새 기수 만들기</button>
+        </>}
 
       </div>
     </div>
