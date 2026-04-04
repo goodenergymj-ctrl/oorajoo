@@ -171,6 +171,7 @@ export default function App({ session }: { session: any }) {
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
+  const [applications, setApplications] = useState<any[]>([])
   const [todayCompletionCount, setTodayCompletionCount] = useState(0)
   const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
   const [showBadgePopup, setShowBadgePopup] = useState(false)
@@ -301,6 +302,14 @@ export default function App({ session }: { session: any }) {
       .order('created_at', { ascending: true })
     if (data) setCohortMembers(data as Profile[])
   }
+  const loadApplications = async () => {
+    const { data } = await supabase
+      .from('recruit_applications')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (data) setApplications(data)
+  }
+
   const loadPending = async () => {
     const { data } = await supabase
       .from('pending_members')
@@ -437,7 +446,7 @@ export default function App({ session }: { session: any }) {
   }, [myCohortId])
 
   useEffect(() => {
-    if (isAdmin) loadPending()
+    if (isAdmin) { loadPending(); loadApplications() }
   }, [isAdmin])
 
   useEffect(() => {
@@ -1870,6 +1879,7 @@ export default function App({ session }: { session: any }) {
         <div className="admin-tabs">
           <button className={`admin-tab${adminTab === 'notice' ? ' on' : ''}`} onClick={() => setAdminTab('notice')}>공지</button>
           <button className={`admin-tab${adminTab === 'cohort' ? ' on' : ''}`} onClick={() => setAdminTab('cohort')}>기수관리</button>
+          <button className={`admin-tab${adminTab === 'apply' ? ' on' : ''}`} onClick={() => { setAdminTab('apply'); loadApplications() }}>신청자</button>
         </div>
 
         {adminTab === 'notice' && (<>
@@ -1936,6 +1946,51 @@ export default function App({ session }: { session: any }) {
             }} style={{ width: '100%', background: 'none', border: '2px dashed var(--border)', borderRadius: 12, padding: 13, fontSize: 13, fontWeight: 700, color: 'var(--ink3)', cursor: 'pointer' }}>
               + 새 기수 만들기
             </button>
+          </>
+        )}
+
+        {adminTab === 'apply' && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', marginBottom: 10 }}>
+              신청자 목록 ({applications.length}명)
+            </div>
+            {applications.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 신청자가 없어요</div>
+            )}
+            {applications.map(app => (
+              <div key={app.id} style={{ background: 'var(--surface)', borderRadius: 12, padding: 13, marginBottom: 8, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>{app.nickname}</span>
+                    <span style={{ fontSize: 11, color: 'var(--ink3)', marginLeft: 6 }}>{app.name}</span>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: app.status === 'approved' ? '#DCFCE7' : app.status === 'rejected' ? '#FEE2E2' : 'var(--border)', color: app.status === 'approved' ? '#16A34A' : app.status === 'rejected' ? '#DC2626' : 'var(--ink3)' }}>
+                    {app.status === 'approved' ? '승인' : app.status === 'rejected' ? '거절' : '대기중'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>{app.email}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.6, marginBottom: app.status === 'pending' ? 10 : 0, background: 'var(--white)', borderRadius: 8, padding: '8px 10px', border: '1px solid var(--border)' }}>
+                  "{app.pledge}"
+                </div>
+                {app.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                    <button onClick={async () => {
+                      await supabase.from('recruit_applications').update({ status: 'approved' }).eq('id', app.id)
+                      loadApplications()
+                      showToast(`${app.nickname}님 승인됐어요 ✓`)
+                    }} style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      승인
+                    </button>
+                    <button onClick={async () => {
+                      await supabase.from('recruit_applications').update({ status: 'rejected' }).eq('id', app.id)
+                      loadApplications()
+                    }} style={{ flex: 1, background: 'none', border: '1px solid #DC2626', borderRadius: 10, padding: '8px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer' }}>
+                      거절
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
           </>
         )}
 
