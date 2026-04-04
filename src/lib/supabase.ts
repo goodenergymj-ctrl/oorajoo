@@ -22,6 +22,10 @@ export type Profile = {
   challenge_started_at: string | null
   challenge_round: number
   notification_time: string | null
+  total_days?: number
+  badges?: string[]
+  level?: number
+  points?: number
 }
 
 export type Cohort = {

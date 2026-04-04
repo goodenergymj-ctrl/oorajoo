@@ -47,6 +47,37 @@ const CHEERS = [
   "지금 느리다고 틀린 게 아니에요. 각자의 속도가 있어요.",
 ]
 
+const BADGES = [
+  { id: 'first_record',   emoji: '🌱', label: '첫 기록',    desc: '처음으로 기록을 남겼어요' },
+  { id: 'streak_3',       emoji: '🔥', label: '3일 연속',   desc: '3일 연속 기록 달성' },
+  { id: 'streak_7',       emoji: '⚡', label: '7일 연속',   desc: '7일 연속 기록 달성' },
+  { id: 'streak_14',      emoji: '💎', label: '14일 연속',  desc: '2주 연속 기록 달성' },
+  { id: 'streak_21',      emoji: '👑', label: '21일 연속',  desc: '3주 연속 기록 달성' },
+  { id: 'streak_30',      emoji: '🏆', label: '30일 완주',  desc: '30일 챌린지 완주!' },
+  { id: 'first_comment',  emoji: '💬', label: '첫 댓글',    desc: '처음으로 댓글을 남겼어요' },
+  { id: 'first_reaction', emoji: '❤️', label: '첫 반응',    desc: '처음으로 반응을 남겼어요' },
+  { id: 'round_2',        emoji: '🔄', label: '2라운드',    desc: '두 번째 챌린지 도전!' },
+]
+
+const POINT_RULES = {
+  daily_record: 10,
+  streak_3: 30,
+  streak_7: 70,
+  streak_14: 140,
+  streak_21: 210,
+  streak_30: 300,
+  received_reaction: 2,
+}
+
+const getLevel = (points: number) => {
+  if (points < 50)  return { level: 1, title: '새싹 🌱',   next: 50 }
+  if (points < 150) return { level: 2, title: '새벽러 🌙', next: 150 }
+  if (points < 300) return { level: 3, title: '성장러 📈', next: 300 }
+  if (points < 500) return { level: 4, title: '꾸준러 💪', next: 500 }
+  if (points < 800) return { level: 5, title: '챌린저 ⚡', next: 800 }
+  return { level: 6, title: '레전드 👑', next: null }
+}
+
 const TAGS = ['#새벽기상', '#공부중', '#오늘의책', '#소확행', '#힘들다', '#운동', '#감사']
 const REACT_CONFIG = [
   { key: '❤️', emoji: '❤️' },
@@ -138,6 +169,10 @@ export default function App({ session }: { session: any }) {
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
+  const [todayCompletionCount, setTodayCompletionCount] = useState(0)
+  const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
+  const [showBadgePopup, setShowBadgePopup] = useState(false)
+  const [weeklyStats, setWeeklyStats] = useState<{ thisWeek: number; lastWeek: number }>({ thisWeek: 0, lastWeek: 0 })
 
   // ─── 파생값 ────────────────────────────────────────────────
   const myCohortId = viewingCohortId || profile?.cohort_id || cohorts.find(c => c.status === 'active')?.id || 0
@@ -179,8 +214,18 @@ export default function App({ session }: { session: any }) {
       .eq('user_id', session.user.id)
       .gte('created_at', today + 'T00:00:00+09:00')
       .limit(1)
-    if (data && data.length > 0) setSubmitted(true)
-    else setSubmitted(false)
+    if (data && data.length > 0) {
+      setSubmitted(true)
+      try {
+        const stored = localStorage.getItem('daily_cheer_v1')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed.date === today && parsed.cheer) setAiCheer(parsed.cheer)
+        }
+      } catch {}
+    } else {
+      setSubmitted(false)
+    }
   }
   const loadFeed = async () => {
     if (!myCohortId) return
@@ -256,12 +301,52 @@ export default function App({ session }: { session: any }) {
     if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
   }
 
+  const loadTodayCompletion = async () => {
+    if (!myCohortId) return
+    const today = getKSTDateString()
+    const { data } = await supabase
+      .from('feed')
+      .select('user_id')
+      .eq('cohort_id', myCohortId)
+      .gte('created_at', today + 'T00:00:00+09:00')
+    if (data) setTodayCompletionCount(new Set(data.map((d: any) => d.user_id)).size)
+  }
+
+  const loadWeeklyStats = async () => {
+    const today = new Date()
+    const dayOfWeek = today.getDay() === 0 ? 7 : today.getDay()
+    const thisMonday = new Date(today)
+    thisMonday.setDate(today.getDate() - dayOfWeek + 1)
+    thisMonday.setHours(0, 0, 0, 0)
+    const lastMonday = new Date(thisMonday)
+    lastMonday.setDate(thisMonday.getDate() - 7)
+    const [thisWeekRes, lastWeekRes] = await Promise.all([
+      supabase.from('feed').select('id').eq('user_id', session.user.id).gte('created_at', thisMonday.toISOString()),
+      supabase.from('feed').select('id').eq('user_id', session.user.id).gte('created_at', lastMonday.toISOString()).lt('created_at', thisMonday.toISOString()),
+    ])
+    setWeeklyStats({ thisWeek: thisWeekRes.data?.length || 0, lastWeek: lastWeekRes.data?.length || 0 })
+  }
+
   const fetchQuestion = async () => {
+    const today = getKSTDateString()
+    try {
+      const stored = localStorage.getItem('daily_question_v1')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.date === today && parsed.question) {
+          setQuestion(parsed.question)
+          setQLoading(false)
+          return
+        }
+      }
+    } catch {}
     setQLoading(true)
     try {
       const res = await fetch('/api/question')
       const data = await res.json()
-      setQuestion(data.question)
+      const q = data.question
+      setQuestion(q)
+      try { localStorage.setItem('daily_question_v1', JSON.stringify({ date: today, question: q })) } catch {}
     } catch {
       setQuestion('10년 후의 나는 오늘의 어떤 선택에 가장 감사할까요?')
     }
@@ -333,6 +418,8 @@ export default function App({ session }: { session: any }) {
       loadReactions()
       loadCohortMembers()
       loadFollowings()
+      loadTodayCompletion()
+      loadWeeklyStats()
     }
   }, [myCohortId])
 
@@ -421,6 +508,7 @@ export default function App({ session }: { session: any }) {
     setSavingNotif(true)
     setNotifTime(time)
     await supabase.from('profiles').update({ notification_time: time || null }).eq('id', session.user.id)
+    if (time) await subscribePush().catch(() => {})
     setSavingNotif(false)
     showToast(time ? `⏰ ${time}에 기록 알림을 보내드릴게요!` : '알림 시간이 해제됐어요')
   }
@@ -506,7 +594,13 @@ export default function App({ session }: { session: any }) {
           goal: myRecord.goal,
           answer: myRecord.question_answer,
         }),
-      }).then(r => r.json()).then(d => setAiCheer(d.cheer || '')).catch(() => {}).finally(() => setCheerLoading(false))
+      }).then(r => r.json()).then(d => {
+        const cheer = d.cheer || ''
+        setAiCheer(cheer)
+        if (cheer) {
+          try { localStorage.setItem('daily_cheer_v1', JSON.stringify({ date: getKSTDateString(), cheer })) } catch {}
+        }
+      }).catch(() => {}).finally(() => setCheerLoading(false))
       // streak 업데이트
       const today = getKSTDateString()
       const todayKST = new Date(today + 'T00:00:00+09:00')
@@ -520,8 +614,49 @@ export default function App({ session }: { session: any }) {
         .lt('created_at', today + 'T00:00:00+09:00')
         .limit(1)
       const newStreak = yesterdayFeed && yesterdayFeed.length > 0 ? (profile?.streak || 0) + 1 : 1
-      await supabase.from('profiles').update({ streak: newStreak }).eq('id', session.user.id)
+
+      // 포인트 계산
+      let earnedPoints = POINT_RULES.daily_record
+      const streakBonusMap: Record<number, number> = {
+        3: POINT_RULES.streak_3, 7: POINT_RULES.streak_7,
+        14: POINT_RULES.streak_14, 21: POINT_RULES.streak_21, 30: POINT_RULES.streak_30,
+      }
+      if (streakBonusMap[newStreak]) earnedPoints += streakBonusMap[newStreak]
+
+      // 뱃지 체크
+      const currentBadges: string[] = (profile?.badges as string[]) || []
+      const earnedBadges: string[] = []
+      if (!currentBadges.includes('first_record')) earnedBadges.push('first_record')
+      if (newStreak >= 3  && !currentBadges.includes('streak_3'))  earnedBadges.push('streak_3')
+      if (newStreak >= 7  && !currentBadges.includes('streak_7'))  earnedBadges.push('streak_7')
+      if (newStreak >= 14 && !currentBadges.includes('streak_14')) earnedBadges.push('streak_14')
+      if (newStreak >= 21 && !currentBadges.includes('streak_21')) earnedBadges.push('streak_21')
+      if (newStreak >= 30 && !currentBadges.includes('streak_30')) earnedBadges.push('streak_30')
+      if ((profile?.challenge_round || 1) >= 2 && !currentBadges.includes('round_2')) earnedBadges.push('round_2')
+      const newBadgeIds = [...currentBadges, ...earnedBadges]
+      const newPoints = (profile?.points || 0) + earnedPoints
+      const { level: newLevel } = getLevel(newPoints)
+
+      await supabase.from('profiles').update({
+        streak: newStreak,
+        points: newPoints,
+        level: newLevel,
+        total_days: (profile?.total_days || 0) + 1,
+        badges: newBadgeIds,
+      }).eq('id', session.user.id)
+
+      // 새 뱃지 획득 팝업
+      if (earnedBadges.length > 0) {
+        const badge = BADGES.find(b => b.id === earnedBadges[0])
+        if (badge) {
+          setNewBadge(badge)
+          setShowBadgePopup(true)
+          setTimeout(() => setShowBadgePopup(false), 3500)
+        }
+      }
+
       loadProfile()
+      loadTodayCompletion()
     }
     setSubmitting(false)
   }
@@ -539,6 +674,16 @@ export default function App({ session }: { session: any }) {
         ? feed.find(f => f.id === targetId)
         : lounge.find(p => p.id === targetId)
       if (owner) sendPush(owner.user_id, `${emoji} 새 반응`, `${profile?.nickname || '누군가'}님이 반응을 남겼어요`)
+      // first_reaction 뱃지
+      const rb: string[] = (profile?.badges as string[]) || []
+      if (!rb.includes('first_reaction')) {
+        const nb = [...rb, 'first_reaction']
+        await supabase.from('profiles').update({ badges: nb }).eq('id', session.user.id)
+        setNewBadge(BADGES.find(b => b.id === 'first_reaction') || null)
+        setShowBadgePopup(true)
+        setTimeout(() => setShowBadgePopup(false), 3500)
+        loadProfile()
+      }
     }
     setReactions(p => ({ ...p, [key]: !on }))
     loadReactions()
@@ -551,6 +696,16 @@ export default function App({ session }: { session: any }) {
     setCommentInput(p => ({ ...p, [feedId]: '' }))
     const owner = feed.find(f => f.id === feedId)
     if (owner) sendPush(owner.user_id, '💬 새 댓글', `${profile?.nickname || '누군가'}님이 댓글을 남겼어요`)
+    // first_comment 뱃지
+    const cb: string[] = (profile?.badges as string[]) || []
+    if (!cb.includes('first_comment')) {
+      const nb = [...cb, 'first_comment']
+      await supabase.from('profiles').update({ badges: nb }).eq('id', session.user.id)
+      setNewBadge(BADGES.find(b => b.id === 'first_comment') || null)
+      setShowBadgePopup(true)
+      setTimeout(() => setShowBadgePopup(false), 3500)
+      loadProfile()
+    }
     loadFeed()
   }
 
@@ -740,8 +895,8 @@ export default function App({ session }: { session: any }) {
     .tab-btn{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;font-size:9px;font-weight:700;letter-spacing:0.3px;border-radius:26px;transition:all 0.2s;color:var(--ink3);}
     .tab-btn.on{background:var(--black);color:white;}
     .write-section{padding:16px 16px 0;}
-    .write-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;box-shadow:var(--sh);}
-    .wc-bar{height:3px;background:var(--black);}
+    .write-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:visible;box-shadow:var(--sh);}
+    .wc-bar{height:3px;background:var(--black);border-radius:var(--r2) var(--r2) 0 0;}
     .wc-inner{padding:16px 18px;}
     .wc-ta{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;color:var(--ink);resize:none;line-height:1.7;transition:border-color 0.2s;}
     .wc-ta:focus{border-color:var(--black);}
@@ -1050,6 +1205,16 @@ export default function App({ session }: { session: any }) {
 
   const renderToday = () => (
     <>
+      {todayCompletionCount > 0 && (
+        <div style={{ margin: '14px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>🔥</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
+            <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)', whiteSpace: 'nowrap' as const }}>나도 하기!</span>
+        </div>
+      )}
       {notice && (
         <div className="notice-card">
           <div className="notice-bar">
@@ -1390,6 +1555,67 @@ export default function App({ session }: { session: any }) {
           ))}
         </div>
 
+        <div className="grid-card" style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>📊 주간 리포트</span>
+            {weeklyStats.thisWeek > weeklyStats.lastWeek
+              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', background: '#DCFCE7', padding: '3px 9px', borderRadius: 20 }}>↑ 지난주보다 {weeklyStats.thisWeek - weeklyStats.lastWeek}일 더!</span>
+              : weeklyStats.thisWeek < weeklyStats.lastWeek
+              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', padding: '3px 9px', borderRadius: 20 }}>↓ {weeklyStats.lastWeek - weeklyStats.thisWeek}일 적어요</span>
+              : <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20 }}>지난주와 동일</span>
+            }
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ label: '이번 주', value: weeklyStats.thisWeek }, { label: '지난 주', value: weeklyStats.lastWeek }].map(({ label, value }) => (
+              <div key={label} style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: 'var(--ink3)', marginBottom: 5 }}>{label}</div>
+                <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: 'var(--black)', borderRadius: 3, width: `${Math.min(100, (value / 7) * 100)}%`, transition: 'width 0.5s' }} />
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginTop: 4 }}>{value}일 <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--ink3)' }}>/ 7</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid-card" style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>🎮 성장 레벨</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--black)' }}>{getLevel(profile?.points || 0).title}</span>
+          </div>
+          {(() => {
+            const lv = getLevel(profile?.points || 0)
+            const pct = lv.next ? Math.min(100, ((profile?.points || 0) / lv.next) * 100) : 100
+            return (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <span style={{ fontSize: 11, color: 'var(--ink3)' }}>Lv.{lv.level}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>{profile?.points || 0}P {lv.next ? `/ ${lv.next}P` : '(MAX)'}</span>
+                </div>
+                <div style={{ height: 8, background: 'var(--surface)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: 'var(--black)', borderRadius: 4, width: `${pct}%`, transition: 'width 0.5s' }} />
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 6 }}>기록 +10P · 스트릭 달성 보너스 최대 +300P</div>
+              </>
+            )
+          })()}
+        </div>
+
+        <div className="grid-card" style={{ marginTop: 8, marginBottom: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)', marginBottom: 12 }}>🏅 뱃지 컬렉션</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {BADGES.map(badge => {
+              const earned = ((profile?.badges as string[]) || []).includes(badge.id)
+              return (
+                <div key={badge.id} style={{ background: earned ? 'var(--black)' : 'var(--surface)', borderRadius: 12, padding: '10px 8px', textAlign: 'center', border: `1px solid ${earned ? 'var(--black)' : 'var(--border)'}`, opacity: earned ? 1 : 0.45 }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{badge.emoji}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: earned ? 'white' : 'var(--ink3)', lineHeight: 1.3 }}>{badge.label}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="sec-label">나의 기록<span className="sec-sub">최근 순</span></div>
         {feed.filter(f => f.user_id === session.user.id).slice(0, 10).map(item => (
           <div key={item.id} className="hist-card">
@@ -1429,7 +1655,7 @@ export default function App({ session }: { session: any }) {
                 <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--black)' }}>{m.nickname}</span>
                 {(m.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '2px 7px', borderRadius: 20 }}>{m.challenge_round}R</span>}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥</div>
+              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>{m.streak || 0}일 연속 🔥 · {getLevel(m.points || 0).title}</div>
             </div>
             {m.id === session.user.id
               ? <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: 'var(--black)', padding: '2px 6px', borderRadius: 20 }}>나</span>
@@ -1714,6 +1940,18 @@ export default function App({ session }: { session: any }) {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {showBadgePopup && newBadge && (
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 400, animation: 'badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
+            <style>{`@keyframes badgePop { from { opacity:0; transform:translate(-50%,-50%) scale(0.5) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }`}</style>
+            <div style={{ background: 'var(--black)', borderRadius: 24, padding: '28px 32px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', minWidth: 220 }}>
+              <div style={{ fontSize: 52, marginBottom: 10 }}>{newBadge.emoji}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: 5 }}>NEW BADGE</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: 'white', marginBottom: 5 }}>{newBadge.label}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{newBadge.desc}</div>
             </div>
           </div>
         )}

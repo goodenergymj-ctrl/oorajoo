@@ -43,8 +43,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ sent: 0, time: currentTime })
   }
 
-  // Filter: notification_time <= currentTime
-  const eligible = candidates.filter((u: any) => u.notification_time <= currentTime)
+  // Filter: only users whose notification_time is within ±30 min of current KST time
+  const [ch, cm] = currentTime.split(':').map(Number)
+  const eligible = candidates.filter((u: any) => {
+    if (!u.notification_time) return false
+    const [uh, um] = u.notification_time.split(':').map(Number)
+    const diff = Math.abs(uh * 60 + um - (ch * 60 + cm))
+    return diff <= 30
+  })
   if (eligible.length === 0) {
     return NextResponse.json({ sent: 0, time: currentTime })
   }
@@ -77,7 +83,11 @@ export async function GET(req: NextRequest) {
           })
         )
         sent++
-      } catch {}
+      } catch (err: any) {
+        if (err?.statusCode === 410 || err?.statusCode === 404) {
+          await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
+        }
+      }
     }
   }
 

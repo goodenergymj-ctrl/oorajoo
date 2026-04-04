@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
+        max_tokens: 300,
         messages: [{
           role: 'user',
           content: `아래는 한 사람이 오늘 기록한 내용이야:\n${parts}\n\n이 내용을 읽고 진심 어린 응원·격려 문구를 2문장으로 써줘. 기록 내용을 구체적으로 언급하면서 따뜻하게 공감하고 응원해줘. 존댓말, 자연스러운 한국어로. 이모지 없이 텍스트만. 문구만 출력해.`

@@ -27,16 +27,12 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data, error: dbError } = await supabase
+  const { data } = await supabase
     .from('push_subscriptions')
     .select('subscription')
     .eq('user_id', targetUserId)
-    .single()
+    .maybeSingle()
 
-  if (dbError) {
-    console.error('DB error:', dbError)
-    return NextResponse.json({ ok: false, error: 'db_error' })
-  }
   if (!data) return NextResponse.json({ ok: false, error: 'no_subscription' })
 
   try {
