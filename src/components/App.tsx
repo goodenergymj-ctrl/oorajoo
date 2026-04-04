@@ -174,6 +174,11 @@ export default function App({ session }: { session: any }) {
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [applications, setApplications] = useState<any[]>([])
+  const [showApplyModal, setShowApplyModal] = useState(false)
+  const [applyCohortId, setApplyCohortId] = useState<number>(0)
+  const [applyForm, setApplyForm] = useState({ name: '', pledge: '' })
+  const [applySubmitting, setApplySubmitting] = useState(false)
+  const [applyDone, setApplyDone] = useState(false)
   const [todayCompletionCount, setTodayCompletionCount] = useState(0)
   const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
   const [showBadgePopup, setShowBadgePopup] = useState(false)
@@ -764,6 +769,21 @@ export default function App({ session }: { session: any }) {
     setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
     setPosting(false)
     loadLounge()
+  }
+
+  const submitApplication = async () => {
+    if (!applyForm.name.trim() || !applyForm.pledge.trim()) return
+    setApplySubmitting(true)
+    await supabase.from('recruit_applications').insert({
+      user_id: session.user.id,
+      cohort_id: applyCohortId,
+      nickname: profile?.nickname || '',
+      name: applyForm.name.trim(),
+      pledge: applyForm.pledge.trim(),
+      status: 'pending',
+    })
+    setApplySubmitting(false)
+    setApplyDone(true)
   }
 
   const submitCheer = async () => {
@@ -1837,14 +1857,11 @@ export default function App({ session }: { session: any }) {
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 16, lineHeight: 1.6 }}>
               {recruitingCohort!.title || '다음 기수'} · 소수 정예 · 30일 챌린지
             </div>
-            {recruitingCohort!.recruit_link ? (
-              <a href={recruitingCohort!.recruit_link} target="_blank" rel="noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#4ADE80', color: '#0A0A0A', borderRadius: 20, padding: '8px 18px', fontSize: 12, fontWeight: 900, textDecoration: 'none' }}>
-                신청하기 →
-              </a>
-            ) : (
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>관리자에게 문의해주세요 · oorajoo@naver.com</div>
-            )}
+            <button
+              onClick={() => { setApplyForm({ name: '', pledge: '' }); setApplyDone(false); setApplyCohortId(recruitingCohort!.id); setShowApplyModal(true) }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: 20, padding: '8px 18px', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
+              신청하기 →
+            </button>
           </div>
         )}
 
@@ -1882,9 +1899,11 @@ export default function App({ session }: { session: any }) {
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>🎉 지금 모집 중이에요!</div>
                       <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 1 }}>함께 30일 챌린지 도전해봐요</div>
                     </div>
-                    {cohort.recruit_link && (
-                      <a href={cohort.recruit_link} target="_blank" rel="noreferrer" style={{ background: color, color: 'white', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, textDecoration: 'none', flexShrink: 0 }}>신청하기</a>
-                    )}
+                    <button
+                      onClick={() => { setApplyForm({ name: '', pledge: '' }); setApplyDone(false); setApplyCohortId(cohort.id); setShowApplyModal(true) }}
+                      style={{ background: color, color: 'white', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 11, fontWeight: 900, cursor: 'pointer', flexShrink: 0 }}>
+                      신청하기
+                    </button>
                   </div>
                 )}
               </div>
@@ -2342,6 +2361,57 @@ export default function App({ session }: { session: any }) {
               <button onClick={doCopyShare} style={{ width: '100%', background: copiedShare ? '#333' : 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, marginBottom: 8, cursor: 'pointer' }}>{copiedShare ? '✓ 복사됐어요!' : '링크 복사하기'}</button>
               <button onClick={doAppShare} style={{ width: '100%', background: 'var(--surface)', color: 'var(--black)', border: '1px solid var(--border)', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>📤 앱으로 공유하기</button>
               <button onClick={() => setShareModal(null)} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>닫기</button>
+            </div>
+          </div>
+        )}
+
+        {showApplyModal && (
+          <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) setShowApplyModal(false) }}>
+            <div className="modal">
+              <div className="modal-handle" />
+              {applyDone ? (
+                <>
+                  <div style={{ textAlign: 'center', padding: '12px 0 20px' }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>🌿</div>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--black)', marginBottom: 8 }}>신청 완료!</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.7 }}>
+                      승인까지 보통 24시간 이내예요.<br />그동안 자유롭게 기록해봐요 🌿
+                    </div>
+                  </div>
+                  <button onClick={() => setShowApplyModal(false)} style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer' }}>확인</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 4 }}>기수 신청하기</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 18 }}>
+                    {cohorts.find(c => c.id === applyCohortId)?.title || `${applyCohortId}기`} · 30일 챌린지
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>이름 (실명) *</div>
+                  <input
+                    style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 13px', fontSize: 14, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, marginBottom: 14 }}
+                    placeholder="홍길동"
+                    value={applyForm.name}
+                    onChange={e => setApplyForm(p => ({ ...p, name: e.target.value }))}
+                    maxLength={20}
+                  />
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>30일 다짐 한 줄 *</div>
+                  <textarea
+                    style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 13px', fontSize: 14, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, resize: 'none', marginBottom: 20 }}
+                    rows={3}
+                    placeholder="30일 동안 꼭 이루고 싶은 것, 또는 챌린지에 임하는 각오를 적어주세요."
+                    value={applyForm.pledge}
+                    onChange={e => setApplyForm(p => ({ ...p, pledge: e.target.value }))}
+                    maxLength={200}
+                  />
+                  <button
+                    onClick={submitApplication}
+                    disabled={!applyForm.name.trim() || !applyForm.pledge.trim() || applySubmitting}
+                    style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer', opacity: !applyForm.name.trim() || !applyForm.pledge.trim() ? 0.4 : 1, marginBottom: 8 }}>
+                    {applySubmitting ? '신청 중...' : '신청하기 🌿'}
+                  </button>
+                  <button onClick={() => setShowApplyModal(false)} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>취소</button>
+                </>
+              )}
             </div>
           </div>
         )}
