@@ -174,6 +174,8 @@ export default function App({ session }: { session: any }) {
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [applications, setApplications] = useState<any[]>([])
+  const [showProfileSetup, setShowProfileSetup] = useState(false)
+  const [profileSetupSaving, setProfileSetupSaving] = useState(false)
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [applyCohortId, setApplyCohortId] = useState<number>(0)
   const [applyForm, setApplyForm] = useState({ name: '', pledge: '' })
@@ -437,6 +439,11 @@ export default function App({ session }: { session: any }) {
     if (profileLoaded && profile?.nickname) {
       subscribePush().catch(() => {})
       setNotifTime(profile.notification_time || '')
+      // 프로필 미완성 유저에게 프로필 입력 모달 표시 (한 번만)
+      const key = `profileSetupDone_${session.user.id}`
+      if (!profile.intro && !localStorage.getItem(key)) {
+        setShowProfileSetup(true)
+      }
     }
   }, [profileLoaded])
 
@@ -769,6 +776,25 @@ export default function App({ session }: { session: any }) {
     setNewPost(''); setPostTags([]); setPostImage(null); setPostImagePreview(null); setShowPostInput(false)
     setPosting(false)
     loadLounge()
+  }
+
+  const saveProfileSetup = async () => {
+    setProfileSetupSaving(true)
+    await supabase.from('profiles').update({
+      intro: obIntro.trim() || null,
+      threads_id: obThreads.trim() || null,
+      insta_id: obInsta.trim() || null,
+      naver_blog: obNaver.trim() || null,
+    }).eq('id', session.user.id)
+    localStorage.setItem(`profileSetupDone_${session.user.id}`, 'done')
+    setProfileSetupSaving(false)
+    setShowProfileSetup(false)
+    loadProfile()
+  }
+
+  const skipProfileSetup = () => {
+    localStorage.setItem(`profileSetupDone_${session.user.id}`, 'done')
+    setShowProfileSetup(false)
   }
 
   const submitApplication = async () => {
@@ -2361,6 +2387,52 @@ export default function App({ session }: { session: any }) {
               <button onClick={doCopyShare} style={{ width: '100%', background: copiedShare ? '#333' : 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, marginBottom: 8, cursor: 'pointer' }}>{copiedShare ? '✓ 복사됐어요!' : '링크 복사하기'}</button>
               <button onClick={doAppShare} style={{ width: '100%', background: 'var(--surface)', color: 'var(--black)', border: '1px solid var(--border)', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, marginBottom: 8, cursor: 'pointer' }}>📤 앱으로 공유하기</button>
               <button onClick={() => setShareModal(null)} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>닫기</button>
+            </div>
+          </div>
+        )}
+
+        {showProfileSetup && (
+          <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) skipProfileSetup() }}>
+            <div className="modal" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+              <div className="modal-handle" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)' }}>프로필 완성하기</div>
+                <button onClick={skipProfileSetup} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--ink3)', cursor: 'pointer', padding: '4px 8px' }}>건너뛰기</button>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 18 }}>나중에 설정에서도 바꿀 수 있어요</div>
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>자기소개</div>
+              <textarea
+                style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 13px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const, resize: 'none', marginBottom: 16 }}
+                rows={3}
+                placeholder="어떤 삶을 살고 싶은지, 요즘 관심사는..."
+                value={obIntro}
+                onChange={e => setObIntro(e.target.value)}
+                maxLength={100}
+                autoFocus
+              />
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 10 }}>소셜 아이디 <span style={{ fontWeight: 400 }}>(선택)</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>T</div>
+                <input style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit' }} placeholder="스레드 아이디 (@제외)" value={obThreads} onChange={e => setObThreads(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#f09433,#dc2743,#bc1888)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>I</div>
+                <input style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit' }} placeholder="인스타그램 아이디 (@제외)" value={obInsta} onChange={e => setObInsta(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#03C75A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 10, fontWeight: 900, color: 'white' }}>N</div>
+                <input style={{ flex: 1, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 13, color: 'var(--ink)', outline: 'none', fontFamily: 'inherit' }} placeholder="네이버 블로그 ID" value={obNaver} onChange={e => setObNaver(e.target.value)} />
+              </div>
+
+              <button
+                onClick={saveProfileSetup}
+                disabled={profileSetupSaving}
+                style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 13, fontSize: 14, fontWeight: 900, cursor: 'pointer', marginBottom: 8 }}>
+                {profileSetupSaving ? '저장 중...' : '저장하기'}
+              </button>
+              <button onClick={skipProfileSetup} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>건너뛰기</button>
             </div>
           </div>
         )}
