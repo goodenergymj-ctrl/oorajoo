@@ -170,6 +170,12 @@ export default function App({ session }: { session: any }) {
   const [newBadge, setNewBadge] = useState<typeof BADGES[0] | null>(null)
   const [showBadgePopup, setShowBadgePopup] = useState(false)
   const [weeklyStats, setWeeklyStats] = useState<{ thisWeek: number; lastWeek: number }>({ thisWeek: 0, lastWeek: 0 })
+  const [showChallengeModal, setShowChallengeModal] = useState(false)
+  const [recruitingCohort, setRecruitingCohort] = useState<any>(null)
+  const [applyName, setApplyName] = useState('')
+  const [applyPledge, setApplyPledge] = useState('')
+  const [applySubmitting, setApplySubmitting] = useState(false)
+  const [applyDone, setApplyDone] = useState(false)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
@@ -275,6 +281,32 @@ export default function App({ session }: { session: any }) {
   const loadFollowings = async () => {
     const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
     if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
+  }
+
+  const loadRecruitingCohort = async () => {
+    const { data } = await supabase
+      .from('cohorts')
+      .select('*')
+      .eq('is_recruiting', true)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data) setRecruitingCohort(data)
+  }
+
+  const submitApplication = async () => {
+    if (!applyName.trim() || !applyPledge.trim()) return
+    setApplySubmitting(true)
+    await supabase.from('recruit_applications').insert({
+      user_id: session.user.id,
+      cohort_id: recruitingCohort?.id || null,
+      nickname: profile?.nickname || '',
+      name: applyName,
+      pledge: applyPledge,
+      status: 'pending',
+    })
+    setApplySubmitting(false)
+    setApplyDone(true)
   }
 
   const loadWeeklyStats = async () => {
@@ -385,6 +417,7 @@ export default function App({ session }: { session: any }) {
     loadFollowings()
     checkTodaySubmitted()
     loadWeeklyStats()
+    loadRecruitingCohort()
   }, [])
 
 
@@ -1766,7 +1799,7 @@ export default function App({ session }: { session: any }) {
         <div className="settings-title">서비스</div>
         <div className="settings-card">
           <div className="settings-row"><div><div className="settings-row-label">문의하기</div><div className="settings-row-sub">oorajoo@naver.com</div></div></div>
-          <div className="settings-row" onClick={() => window.open('/challenge', '_blank')}><div><div className="settings-row-label">우라주 챌린지 기수 참여하기 →</div><div className="settings-row-sub">기수별 챌린지 소개 및 신청</div></div></div>
+          <div className="settings-row" onClick={() => { loadRecruitingCohort(); setApplyName(''); setApplyPledge(''); setApplyDone(false); setShowChallengeModal(true) }}><div><div className="settings-row-label">우라주 챌린지 기수 참여하기 →</div><div className="settings-row-sub">기수별 챌린지 소개 및 신청</div></div></div>
         </div>
       </div>
       <div className="settings-section">
@@ -1880,6 +1913,102 @@ export default function App({ session }: { session: any }) {
 
         {isAdmin && <button className="admin-fab" onClick={() => setShowAdmin(true)}><Icon name="bell" size={18} color="white" /></button>}
         {isAdmin && showAdmin && renderAdmin()}
+
+        {showChallengeModal && (
+          <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) { setShowChallengeModal(false); setApplyDone(false); setApplyName(''); setApplyPledge('') } }}>
+            <div className="modal">
+              <div className="modal-handle" />
+              {applyDone ? (
+                <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+                  <div style={{ fontSize: 52, marginBottom: 14 }}>✅</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>신청 완료!</div>
+                  <div style={{ fontSize: 13, color: 'var(--ink2)', lineHeight: 1.75, marginBottom: 24 }}>
+                    마감일 다음날 멤버가 확정돼요.<br />
+                    그동안 앱에서 자유롭게 기록해봐요 🌿
+                  </div>
+                  <button onClick={() => { setShowChallengeModal(false); setApplyDone(false) }} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>닫기</button>
+                </div>
+              ) : recruitingCohort ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--black)', marginBottom: 3 }}>우라주 챌린지 기수</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink2)' }}>{recruitingCohort.title || `${recruitingCohort.id}기`}</div>
+                    </div>
+                    <button onClick={() => { setShowChallengeModal(false); setApplyName(''); setApplyPledge('') }} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--ink3)', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+                  </div>
+                  {recruitingCohort.recruit_deadline && (
+                    <div style={{ fontSize: 11, color: 'var(--ink3)', marginBottom: 16 }}>
+                      신청 마감: {new Date(recruitingCohort.recruit_deadline).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} · 다음날 멤버 확정
+                    </div>
+                  )}
+                  <div style={{ background: '#0A0A0A', borderRadius: 14, padding: '16px 18px', marginBottom: 18 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', textTransform: 'uppercase' as const, marginBottom: 12 }}>What You Get</div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: 'white', lineHeight: 1.35, marginBottom: 6 }}>30일 동안 우상향 라이프를<br />함께 만들어요</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65, marginBottom: 16 }}>매일 감사와 목표를 기록하고 좋은 동료들과 함께 성장하는 소수 정예 30일 챌린지</div>
+                    {[
+                      { icon: '🙏', title: '하루의 시작과 마무리', desc: '감사 한 줄, 목표 한 줄. 작지만 강력한 루틴을 만들어요.' },
+                      { icon: '👥', title: '소수 정예 동료들', desc: '진심 어린 멤버들과 서로 자극하고 응원해요.' },
+                      { icon: '✦', title: '미래지향적 AI 질문', desc: '매일 달라지는 우상향 질문으로 더 나은 나를 발견해요.' },
+                      { icon: '🧭', title: '전문 코치의 코칭 타임', desc: '필요할 때 전문 코치이자 버크만 디브리퍼 우라주와 함께해요.' },
+                    ].map(({ icon, title, desc }) => (
+                      <div key={title} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+                        <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 900, color: 'white', marginBottom: 2 }}>{title}</div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.55 }}>{desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ height: 1, background: 'var(--border)', marginBottom: 18 }} />
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>이름 (실명) *</div>
+                  <input
+                    style={{ width: '100%', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--ink)', marginBottom: 14, outline: 'none', fontFamily: 'inherit' }}
+                    placeholder="홍길동"
+                    value={applyName}
+                    onChange={e => setApplyName(e.target.value)}
+                    maxLength={20}
+                    onFocus={e => e.target.style.borderColor = 'var(--black)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>30일 다짐 *</div>
+                  <textarea
+                    style={{ width: '100%', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: 'var(--ink)', resize: 'none', lineHeight: 1.7, marginBottom: 20, outline: 'none', fontFamily: 'inherit' }}
+                    rows={3}
+                    placeholder="30일 동안 이루고 싶은 것, 한 줄로"
+                    value={applyPledge}
+                    onChange={e => setApplyPledge(e.target.value)}
+                    maxLength={200}
+                    onFocus={e => e.target.style.borderColor = 'var(--black)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                  <button
+                    onClick={submitApplication}
+                    disabled={!applyName.trim() || !applyPledge.trim() || applySubmitting}
+                    style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: 15, fontSize: 15, fontWeight: 900, cursor: 'pointer', marginBottom: 10, opacity: !applyName.trim() || !applyPledge.trim() || applySubmitting ? 0.4 : 1 }}
+                  >
+                    {applySubmitting ? '신청 중...' : '신청하기 🌿'}
+                  </button>
+                  <button onClick={() => { setShowChallengeModal(false); setApplyName(''); setApplyPledge('') }} style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: 10, cursor: 'pointer' }}>취소</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--black)' }}>우라주 챌린지 기수</div>
+                    <button onClick={() => setShowChallengeModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--ink3)', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>🌱</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', marginBottom: 8 }}>현재 모집 중인 기수가 없어요</div>
+                    <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.65, marginBottom: 24 }}>다음 기수 오픈 시 알림을 받고 싶다면<br />알림을 켜두세요 🔔</div>
+                    <button onClick={() => setShowChallengeModal(false)} style={{ background: 'var(--black)', color: 'white', border: 'none', borderRadius: 20, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>닫기</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {toast && (
           <div style={{ position: 'fixed', top: 60, left: '50%', transform: 'translateX(-50%)', background: 'var(--black)', color: 'white', padding: '10px 18px', borderRadius: 20, fontSize: 13, fontWeight: 700, zIndex: 300, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', whiteSpace: 'nowrap', maxWidth: 'calc(100% - 32px)', textAlign: 'center' }}>
