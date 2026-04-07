@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase, type Profile, type FeedItem, type LoungePost, type Notice } from '@/lib/supabase'
 import AdBanner from './AdBanner'
 
@@ -162,6 +162,8 @@ export default function App({ session }: { session: any }) {
   const [members, setMembers] = useState<Profile[]>([])
   const [followings, setFollowings] = useState<Set<string>>(new Set())
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
+  const feedRef = useRef<FeedItem[]>([])
+  const loungeRef = useRef<LoungePost[]>([])
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
@@ -226,8 +228,8 @@ export default function App({ session }: { session: any }) {
       .from('feed')
       .select('*, profiles(*), comments(*, profiles(nickname))')
       .order('created_at', { ascending: false })
-      .limit(100)
-    if (data) setFeed(data as FeedItem[])
+      .limit(500)
+    if (data) { setFeed(data as FeedItem[]); feedRef.current = data as FeedItem[] }
   }
 
   const loadLounge = async () => {
@@ -235,7 +237,7 @@ export default function App({ session }: { session: any }) {
       .from('lounge')
       .select('*, profiles(*), comments(*, profiles(nickname))')
       .order('created_at', { ascending: false })
-    if (data) setLounge(data as LoungePost[])
+    if (data) { setLounge(data as LoungePost[]); loungeRef.current = data as LoungePost[] }
   }
 
   const loadNotice = async () => {
@@ -282,7 +284,8 @@ export default function App({ session }: { session: any }) {
   }
 
   const loadFollowings = async () => {
-    const { data } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
+    const { data, error } = await supabase.from('follows').select('following_id').eq('follower_id', session.user.id)
+    if (error) { console.error('[follows] load error:', error.message); return }
     if (data) setFollowings(new Set(data.map((f: any) => f.following_id)))
   }
 
@@ -445,8 +448,8 @@ export default function App({ session }: { session: any }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
         const data = payload.new as any
         if (data.user_id !== session.user.id) {
-          const myFeedIds = feed.filter((f: any) => f.user_id === session.user.id).map((f: any) => f.id)
-          const myLoungeIds = lounge.filter((p: any) => p.user_id === session.user.id).map((p: any) => p.id)
+          const myFeedIds = feedRef.current.filter((f: any) => f.user_id === session.user.id).map((f: any) => f.id)
+          const myLoungeIds = loungeRef.current.filter((p: any) => p.user_id === session.user.id).map((p: any) => p.id)
           if (myFeedIds.includes(data.feed_id) || myLoungeIds.includes(data.lounge_id)) showToast('💬 누군가 내 글에 댓글을 남겼어요!')
         }
         if (data.lounge_id) loadLounge()
@@ -455,7 +458,7 @@ export default function App({ session }: { session: any }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions' }, (payload) => {
         const data = payload.new as any
         if (data.user_id !== session.user.id) {
-          const myFeedIds = feed.filter((f: any) => f.user_id === session.user.id).map((f: any) => f.id)
+          const myFeedIds = feedRef.current.filter((f: any) => f.user_id === session.user.id).map((f: any) => f.id)
           if (data.target_type === 'feed' && myFeedIds.includes(data.target_id)) showToast(`${data.emoji} 누군가 내 기록에 반응을 남겼어요!`)
         }
         loadReactions()
@@ -674,6 +677,7 @@ export default function App({ session }: { session: any }) {
       const rb: string[] = (profile?.badges as string[]) || []
       if (!rb.includes('first_reaction')) {
         const nb = [...rb, 'first_reaction']
+        setProfile(p => p ? { ...p, badges: nb } : p)
         await supabase.from('profiles').update({ badges: nb }).eq('id', session.user.id)
         setNewBadge(BADGES.find(b => b.id === 'first_reaction') || null)
         setShowBadgePopup(true)
@@ -1086,30 +1090,23 @@ export default function App({ session }: { session: any }) {
           </div>
 
           <div style={{ fontSize: 10, fontWeight: 700, color: '#999', letterSpacing: '1px', textTransform: 'uppercase' as const, marginBottom: 7 }}>매일 기록 알림 시간</div>
-          <div style={{ fontSize: 11, color: '#bbb', marginBottom: 12 }}>선택한 시간부터 기록 안 하면 최대 4번 리마인더가 와요</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 28 }}>
-            {[
-              { time: '07:00', label: '🌅 오전 7시' },
-              { time: '11:30', label: '☀️ 오전 11시 반' },
-              { time: '18:30', label: '🌆 오후 6시 반' },
-              { time: '21:00', label: '🌙 밤 9시' },
-            ].map(({ time, label }) => (
+          <div style={{ fontSize: 11, color: '#bbb', marginBottom: 12 }}>기록을 안 한 날, 이 시간에 리마인더를 보내드려요</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 28 }}>
+            <input
+              type="time"
+              value={notifTime}
+              onChange={e => setNotifTime(e.target.value)}
+              style={{ flex: 1, padding: '11px 14px', borderRadius: 14, border: '1.5px solid #E0E0E0', fontSize: 15, fontFamily: 'inherit', background: 'white' }}
+            />
+            {notifTime && (
               <button
-                key={time}
                 type="button"
-                onClick={() => setNotifTime(t => t === time ? '' : time)}
-                style={{ flex: '1 0 calc(50% - 4px)', padding: '12px 8px', borderRadius: 14, border: notifTime === time ? '2px solid #0A0A0A' : '1.5px solid #E0E0E0', background: notifTime === time ? '#0A0A0A' : 'white', color: notifTime === time ? 'white' : '#666', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                onClick={() => setNotifTime('')}
+                style={{ padding: '11px 14px', borderRadius: 14, border: '1.5px solid #E0E0E0', background: 'white', color: '#999', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
               >
-                {label}
+                해제
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setNotifTime('')}
-              style={{ flex: '1 0 100%', padding: '10px', borderRadius: 14, border: notifTime === '' ? '2px solid #0A0A0A' : '1.5px solid #E0E0E0', background: notifTime === '' ? '#0A0A0A' : 'white', color: notifTime === '' ? 'white' : '#999', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              알림 없음
-            </button>
+            )}
           </div>
 
           <button className="ob-btn" onClick={saveProfile} disabled={!obNickname.trim() || obSaving}>
@@ -1661,12 +1658,20 @@ export default function App({ session }: { session: any }) {
   const renderMembers = () => {
     const today = getKSTDateString()
 
-    // 달성률 계산: total_days / 챌린지 경과일(최대 30) * 100
+    // 달성률 계산: 실제 피드 기록 기준 (total_days가 0이면 feed에서 직접 계산)
     const getRate = (m: Profile) => {
       const start = new Date(m.challenge_started_at || m.created_at)
       const elapsed = Math.max(1, Math.min(30, Math.floor((Date.now() - start.getTime()) / 86400000) + 1))
-      return Math.round(((m.total_days || 0) / elapsed) * 100)
+      const feedDays = new Set(
+        feed.filter(f => f.user_id === m.id).map(f => f.created_at.substring(0, 10))
+      ).size
+      const days = Math.max(m.total_days || 0, feedDays)
+      return Math.round((days / elapsed) * 100)
     }
+
+    // 유저별 총 작성 횟수 (feed 기준)
+    const getPostCount = (m: Profile) =>
+      feed.filter(f => f.user_id === m.id).length
 
     const ranked = [...members].sort((a, b) => getRate(b) - getRate(a))
     const todayDoneIds = new Set(
@@ -1702,16 +1707,16 @@ export default function App({ session }: { session: any }) {
           })}
         </div>
 
-        {/* 스트릭 TOP 3 */}
+        {/* 기록 TOP 3 */}
         <div style={{ margin: '10px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '15px' }}>
-          <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>🔥 연속 스트릭 TOP 3</div>
+          <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>✍️ 기록 횟수 TOP 3</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[...members].sort((a, b) => (b.streak || 0) - (a.streak || 0)).slice(0, 3).map((m, i) => (
+            {[...members].sort((a, b) => getPostCount(b) - getPostCount(a)).slice(0, 3).map((m, i) => (
               <div key={m.id} onClick={() => setSelectedProfile(m)} style={{ flex: 1, background: 'var(--surface)', borderRadius: 12, padding: '10px 8px', textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 16, marginBottom: 4 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
                 <div style={{ width: 32, height: 32, borderRadius: 10, background: m.color || '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: 'white', margin: '0 auto 6px' }}>{m.nickname?.[0]}</div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--black)' }}>{m.nickname}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{m.streak || 0}일</div>
+                <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>{getPostCount(m)}회</div>
               </div>
             ))}
           </div>
@@ -1723,6 +1728,7 @@ export default function App({ session }: { session: any }) {
         </div>
         {members.map(m => {
           const rate = getRate(m)
+          const postCount = getPostCount(m)
           const doneToday = todayDoneIds.has(m.id)
           const isMe = m.id === session.user.id
           const isFollowing = followings.has(m.id)
@@ -1741,7 +1747,7 @@ export default function App({ session }: { session: any }) {
                     {(m.challenge_round || 1) >= 2 && <span style={{ fontSize: 9, fontWeight: 700, color: 'white', background: '#2D4A7A', padding: '1px 6px', borderRadius: 20 }}>{m.challenge_round}R</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{m.streak || 0}일 🔥</span>
+                    <span style={{ fontSize: 10, color: 'var(--ink3)' }}>{postCount}회 ✍️</span>
                     <div style={{ flex: 1, height: 3, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden', maxWidth: 80 }}>
                       <div style={{ height: '100%', background: rate >= 80 ? '#16A34A' : rate >= 50 ? '#CA8A04' : 'var(--border2)', width: `${rate}%` }} />
                     </div>
@@ -1795,20 +1801,31 @@ export default function App({ session }: { session: any }) {
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
             <div>
               <div className="settings-row-label">매일 기록 알림</div>
-              <div className="settings-row-sub">{notifTime ? `매일 ${notifTime}에 기록 리마인더가 와요` : '원하는 시간에 리마인더를 받아보세요'}</div>
+              <div className="settings-row-sub">{notifTime ? `매일 ${notifTime}에 리마인더가 와요` : '원하는 시간에 리마인더를 받아보세요'}</div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
-              {[
-                { time: '07:00', label: '🌅 7시' },
-                { time: '11:30', label: '☀️ 11:30' },
-                { time: '18:30', label: '🌆 18:30' },
-                { time: '21:00', label: '🌙 9시' },
-              ].map(({ time, label }) => (
-                <button key={time} onClick={() => saveNotifTime(notifTime === time ? '' : time)} disabled={savingNotif}
-                  style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: notifTime === time ? '2px solid var(--black)' : '1.5px solid var(--border)', background: notifTime === time ? 'var(--black)' : 'transparent', color: notifTime === time ? 'white' : 'var(--ink2)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {label}
+              <input
+                type="time"
+                value={notifTime}
+                onChange={e => setNotifTime(e.target.value)}
+                style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', background: 'var(--surface)' }}
+              />
+              <button
+                onClick={() => saveNotifTime(notifTime)}
+                disabled={savingNotif || !notifTime}
+                style={{ padding: '8px 14px', borderRadius: 10, background: 'var(--black)', color: 'white', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: !notifTime ? 0.4 : 1 }}
+              >
+                {savingNotif ? '...' : '적용'}
+              </button>
+              {notifTime && (
+                <button
+                  onClick={() => saveNotifTime('')}
+                  disabled={savingNotif}
+                  style={{ padding: '8px 10px', borderRadius: 10, background: 'transparent', color: 'var(--ink3)', border: '1.5px solid var(--border)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  해제
                 </button>
-              ))}
+              )}
             </div>
           </div>
         </div>

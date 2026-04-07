@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     if (!u.notification_time) return false
     const [uh, um] = u.notification_time.split(':').map(Number)
     const diff = Math.abs(uh * 60 + um - (ch * 60 + cm))
-    return diff <= 30
+    return diff <= 14
   })
   if (eligible.length === 0) {
     return NextResponse.json({ sent: 0, time: currentTime })
