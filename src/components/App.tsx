@@ -102,8 +102,28 @@ export default function App({ session }: { session: any }) {
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [lounge, setLounge] = useState<LoungePost[]>([])
   const [notice, setNotice] = useState<Notice | null>(null)
-  const [question, setQuestion] = useState('')
-  const [qLoading, setQLoading] = useState(true)
+  const [question, setQuestion] = useState(() => {
+    try {
+      const stored = localStorage.getItem('daily_question_v1')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+        if (parsed.date === today && parsed.question) return parsed.question as string
+      }
+    } catch {}
+    return ''
+  })
+  const [qLoading, setQLoading] = useState(() => {
+    try {
+      const stored = localStorage.getItem('daily_question_v1')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
+        if (parsed.date === today && parsed.question) return false
+      }
+    } catch {}
+    return true
+  })
   const [tab, setTab] = useState('today')
 
   // 온보딩
@@ -164,6 +184,7 @@ export default function App({ session }: { session: any }) {
   const [feedFilter, setFeedFilter] = useState<'all' | 'following'>('all')
   const feedRef = useRef<FeedItem[]>([])
   const loungeRef = useRef<LoungePost[]>([])
+  const writeCardRef = useRef<HTMLDivElement>(null)
   const [notifTime, setNotifTime] = useState<string>('')
   const [savingNotif, setSavingNotif] = useState(false)
   const [showProfileSetup, setShowProfileSetup] = useState(false)
@@ -911,7 +932,7 @@ export default function App({ session }: { session: any }) {
     .hdr-r{display:flex;align-items:center;gap:8px;}
     .hdr-chip{background:var(--black);color:white;font-size:10px;font-weight:700;padding:5px 12px;border-radius:40px;}
     .tab-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:358px;background:var(--white);border:1px solid var(--border2);border-radius:32px;display:flex;z-index:20;padding:5px;gap:2px;box-shadow:0 4px 20px rgba(0,0,0,0.08);}
-    .tab-btn{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;font-size:9px;font-weight:700;letter-spacing:0.3px;border-radius:26px;transition:all 0.2s;color:var(--ink3);}
+    .tab-btn{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;font-size:11px;font-weight:700;letter-spacing:0.3px;border-radius:26px;transition:all 0.2s;color:var(--ink3);}
     .tab-btn.on{background:var(--black);color:white;}
     .write-section{padding:16px 16px 0;}
     .write-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);overflow:visible;box-shadow:var(--sh);}
@@ -945,7 +966,7 @@ export default function App({ session }: { session: any }) {
     .fc-q-lbl{font-size:9px;font-weight:700;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;}
     .fc-q-txt{font-size:12px;color:var(--ink2);line-height:1.65;font-style:italic;}
     .react-bar{display:flex;gap:5px;padding-top:11px;border-top:1px solid var(--border);align-items:center;margin-top:12px;}
-    .r-btn{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:5px 10px;background:var(--bg);cursor:pointer;}
+    .r-btn{display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:20px;padding:7px 14px;background:var(--bg);cursor:pointer;}
     .r-btn.on{background:var(--black);border-color:var(--black);}
     .r-cnt{font-size:11px;font-weight:700;color:var(--ink3);}
     .r-btn.on .r-cnt{color:white;}
@@ -975,8 +996,12 @@ export default function App({ session }: { session: any }) {
     .lc-text{font-size:13px;color:var(--ink2);line-height:1.7;margin-bottom:10px;}
     .streak-hero{margin:16px 16px 12px;background:var(--black);border-radius:var(--r2);padding:20px;position:relative;overflow:hidden;}
     .sh-blob{position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.04);}
-    .sh-bar-bg{height:3px;background:rgba(255,255,255,0.12);border-radius:3px;overflow:hidden;margin-bottom:14px;}
+    .sh-bar-bg{height:3px;background:rgba(255,255,255,0.12);border-radius:3px;position:relative;margin-bottom:20px;}
     .sh-bar-fill{height:100%;background:white;border-radius:3px;}
+    .sh-milestone{position:absolute;top:-4px;width:2px;height:11px;background:rgba(255,255,255,0.25);border-radius:1px;transform:translateX(-50%);}
+    .sh-milestone.reached{background:rgba(255,255,255,0.7);}
+    .sh-milestone-lbl{position:absolute;top:13px;font-size:8px;font-weight:700;color:rgba(255,255,255,0.3);transform:translateX(-50%);white-space:nowrap;}
+    .sh-milestone-lbl.reached{color:rgba(255,255,255,0.6);}
     .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 14px;}
     .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:13px;}
     .hist-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);padding:15px;margin:0 16px 9px;}
@@ -1207,7 +1232,7 @@ export default function App({ session }: { session: any }) {
               </div>
             ))}
             <div className="cmt-row">
-              <input className="cmt-input" placeholder="한마디 남기기..." value={commentInput[item.id] || ''} onChange={e => setCommentInput(p => ({ ...p, [item.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && submitComment(item.id)} />
+              <input className="cmt-input" placeholder="한마디 남기기..." value={commentInput[item.id] || ''} onChange={e => setCommentInput(p => ({ ...p, [item.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && submitComment(item.id)} onFocus={e => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)} />
               <button className="cmt-send" onClick={() => submitComment(item.id)}><Icon name="send" size={13} color="white" /></button>
             </div>
           </div>
@@ -1226,7 +1251,7 @@ export default function App({ session }: { session: any }) {
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--black)' }}>오늘 {todayCompletionCount}명</span>
             <span style={{ fontSize: 13, color: 'var(--ink2)' }}>이 이미 기록했어요</span>
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)', whiteSpace: 'nowrap' as const }}>나도 하기!</span>
+          <button onClick={() => writeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)', whiteSpace: 'nowrap', cursor: 'pointer' }}>나도 하기!</button>
         </div>
       )}
       {notice && (
@@ -1245,13 +1270,21 @@ export default function App({ session }: { session: any }) {
       )}
 
       <div className="write-section">
-        <div className="write-card">
+        <div className="write-card" ref={writeCardRef}>
           <div className="wc-bar" />
           <div className="wc-inner">
             {submitted ? (
                 <div className="wc-done">
                   <div className="wc-done-icon"><Icon name="check" size={22} color="var(--black)" /></div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 10 }}>오늘도 기록했어요 ✓</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--black)', marginBottom: 6 }}>오늘도 기록했어요 ✓</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', padding: '4px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
+                      🔥 {profile?.streak || 0}일 연속
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', background: 'var(--surface)', padding: '4px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
+                      ✍️ Day {challengeDay} / 30
+                    </span>
+                  </div>
                   <div className="wc-done-cheer">
                     {cheerLoading ? (
                       <span style={{ color: 'var(--ink3)' }}>응원 문구 생성 중...</span>
@@ -1265,6 +1298,13 @@ export default function App({ session }: { session: any }) {
                     <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)', letterSpacing: '-0.4px' }}>오늘의 기록</span>
                     <span style={{ fontSize: 10, color: 'var(--ink3)', background: 'var(--surface)', padding: '3px 9px', borderRadius: 20, border: '1px solid var(--border)' }}>Day {challengeDay} / 30</span>
                   </div>
+                  <div onClick={() => setMyRecord(p => ({ ...p, is_private: !p.is_private }))} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '10px 13px', background: 'var(--surface)', borderRadius: 10, cursor: 'pointer' }}>
+                    <Icon name={myRecord.is_private ? 'eyeOff' : 'eye'} size={16} color={myRecord.is_private ? 'var(--ink3)' : 'var(--ink2)'} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: myRecord.is_private ? 'var(--ink3)' : 'var(--ink2)', flex: 1 }}>{myRecord.is_private ? '나만 보기 (비공개)' : '그룹과 공유'}</span>
+                    <div style={{ width: 36, height: 20, borderRadius: 10, background: myRecord.is_private ? 'var(--border2)' : 'var(--black)', position: 'relative', transition: 'background 0.2s' }}>
+                      <div style={{ position: 'absolute', top: 2, left: myRecord.is_private ? 2 : 17, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                    </div>
+                  </div>
                   {[
                     { key: 'gratitude', dot: '#1A1A1A', label: '오늘의 감사', ph: '오늘 감사한 것, 작은 것도 충분해요!' },
                     { key: 'goal', dot: '#555', label: '오늘의 목표', ph: '오늘 딱 하나만 이룬다면? (작게 써도 좋아요)' },
@@ -1277,13 +1317,6 @@ export default function App({ session }: { session: any }) {
                       <textarea className="wc-ta" rows={2} placeholder={ph} value={(myRecord as any)[key]} onChange={e => setMyRecord(p => ({ ...p, [key]: e.target.value }))} />
                     </div>
                   ))}
-                  <div onClick={() => setMyRecord(p => ({ ...p, is_private: !p.is_private }))} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '10px 13px', background: 'var(--surface)', borderRadius: 10, cursor: 'pointer' }}>
-                    <Icon name={myRecord.is_private ? 'eyeOff' : 'eye'} size={16} color="var(--ink2)" />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)', flex: 1 }}>{myRecord.is_private ? '나만 보기 (비공개)' : '그룹과 공유'}</span>
-                    <div style={{ width: 36, height: 20, borderRadius: 10, background: myRecord.is_private ? 'var(--black)' : 'var(--border2)', position: 'relative', transition: 'background 0.2s' }}>
-                      <div style={{ position: 'absolute', top: 2, left: myRecord.is_private ? 17 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
-                    </div>
-                  </div>
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
                       <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#999' }} />
@@ -1322,6 +1355,13 @@ export default function App({ session }: { session: any }) {
             </div>
             {feedFilter === 'following' && followings.size === 0 && (
               <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--ink3)', fontSize: 13 }}>멤버 탭에서 팔로우하면 여기서 따로 볼 수 있어요</div>
+            )}
+            {displayFeed.length === 0 && !(feedFilter === 'following' && followings.size === 0) && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink3)' }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>✍️</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink2)', marginBottom: 6 }}>아직 오늘의 기록이 없어요</div>
+                <div style={{ fontSize: 12 }}>가장 먼저 오늘의 기록을 남겨보세요!</div>
+              </div>
             )}
             {displayFeed.map((item, index) => (
               <div key={item.id}>
@@ -1405,7 +1445,13 @@ export default function App({ session }: { session: any }) {
           </div>
         </div>
       )}
-      {lounge.length === 0 && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--ink3)', fontSize: 13 }}>아직 글이 없어요. 첫 번째로 남겨봐요!</div>}
+      {lounge.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink3)' }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink2)', marginBottom: 6 }}>아직 글이 없어요</div>
+          <div style={{ fontSize: 12 }}>첫 번째로 생각을 남겨봐요!</div>
+        </div>
+      )}
       {lounge.map((post, index) => {
         const mp = post.profiles as Profile, isMe = post.user_id === session.user.id
         return (
@@ -1529,6 +1575,11 @@ export default function App({ session }: { session: any }) {
           </div>
           <div className="sh-bar-bg">
             <div className="sh-bar-fill" style={{ width: `${Math.min(100, (challengeDay / 30) * 100)}%` }} />
+            {[3, 7, 14, 21, 30].map(d => (
+              <div key={d} className={`sh-milestone${challengeDay >= d ? ' reached' : ''}`} style={{ left: `${(d / 30) * 100}%` }}>
+                <div className={`sh-milestone-lbl${challengeDay >= d ? ' reached' : ''}`}>{d}</div>
+              </div>
+            ))}
           </div>
           {/* 스트릭 보호권: 어제 기록 없고 오늘 아직 미제출 상태일 때 표시 */}
           {streakAtRisk && (
@@ -2308,7 +2359,7 @@ export default function App({ session }: { session: any }) {
                     const d = await res.json()
                     alert('탈퇴 실패: ' + d.error)
                   }
-                }} style={{ flex: 1, background: '#DC2626', color: 'white', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>탈퇴하기</button>
+                }} style={{ flex: 1, background: '#DC2626', color: 'white', border: 'none', borderRadius: 12, padding: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>정말 탈퇴할게요</button>
               </div>
             </div>
           </div>
