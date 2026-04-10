@@ -354,13 +354,14 @@ export default function App({ session }: { session: any }) {
     const yesterday = new Date(kst)
     yesterday.setDate(kst.getDate() - 1)
     const yDate = yesterday.toISOString().split('T')[0]
+    const todayDate = kst.toISOString().split('T')[0]
 
     const { data } = await supabase
       .from('feed')
       .select('*')
       .eq('user_id', session.user.id)
       .gte('created_at', yDate + 'T00:00:00+09:00')
-      .lt('created_at', yDate + 'T23:59:59+09:00')
+      .lt('created_at', todayDate + 'T00:00:00+09:00')
       .limit(1)
       .maybeSingle()
 
@@ -799,6 +800,17 @@ ${recentItems}
   const submitRecord = async () => {
     if (!myRecord.gratitude.trim() || !myRecord.goal.trim()) return
     setSubmitting(true)
+
+    // 오늘 이미 기록했는지 확인 (삭제 후 재제출 중복 방지)
+    const today = getKSTDateString()
+    const { data: alreadyToday } = await supabase
+      .from('feed')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .gte('created_at', today + 'T00:00:00+09:00')
+      .limit(1)
+    const isResubmit = alreadyToday && alreadyToday.length > 0
+
     const { error } = await supabase.from('feed').insert({
       user_id: session.user.id,
       cohort_id: null,
@@ -811,7 +823,8 @@ ${recentItems}
     if (!error) {
       setSubmitted(true)
       loadFeed()
-      // 개인 맞춤 격려 문구 생성
+
+      // 개인 맞춤 격려 문구 생성 (재제출 여부와 무관하게 항상 실행)
       setCheerLoading(true)
       fetch('/api/cheer', {
         method: 'POST',
@@ -828,57 +841,59 @@ ${recentItems}
           try { localStorage.setItem('daily_cheer_v1', JSON.stringify({ date: getKSTDateString(), cheer })) } catch {}
         }
       }).catch(() => {}).finally(() => setCheerLoading(false))
-      // streak 업데이트
-      const today = getKSTDateString()
-      const todayKST = new Date(today + 'T00:00:00+09:00')
-      const yesterdayKST = new Date(todayKST.getTime() - 24 * 60 * 60 * 1000)
-      const yesterdayStr = yesterdayKST.toISOString().split('T')[0]
-      const { data: yesterdayFeed } = await supabase
-        .from('feed')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .gte('created_at', yesterdayStr + 'T00:00:00+09:00')
-        .lt('created_at', today + 'T00:00:00+09:00')
-        .limit(1)
-      const newStreak = yesterdayFeed && yesterdayFeed.length > 0 ? (profile?.streak || 0) + 1 : 1
 
-      // 포인트 계산
-      let earnedPoints = POINT_RULES.daily_record
-      const streakBonusMap: Record<number, number> = {
-        3: POINT_RULES.streak_3, 7: POINT_RULES.streak_7,
-        14: POINT_RULES.streak_14, 21: POINT_RULES.streak_21, 30: POINT_RULES.streak_30,
-      }
-      if (streakBonusMap[newStreak]) earnedPoints += streakBonusMap[newStreak]
+      // 재제출이 아닐 때만 streak/포인트/뱃지/total_days 업데이트
+      if (!isResubmit) {
+        const todayKST = new Date(today + 'T00:00:00+09:00')
+        const yesterdayKST = new Date(todayKST.getTime() - 24 * 60 * 60 * 1000)
+        const yesterdayStr = yesterdayKST.toISOString().split('T')[0]
+        const { data: yesterdayFeed } = await supabase
+          .from('feed')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .gte('created_at', yesterdayStr + 'T00:00:00+09:00')
+          .lt('created_at', today + 'T00:00:00+09:00')
+          .limit(1)
+        const newStreak = yesterdayFeed && yesterdayFeed.length > 0 ? (profile?.streak || 0) + 1 : 1
 
-      // 뱃지 체크
-      const currentBadges: string[] = (profile?.badges as string[]) || []
-      const earnedBadges: string[] = []
-      if (!currentBadges.includes('first_record')) earnedBadges.push('first_record')
-      if (newStreak >= 3  && !currentBadges.includes('streak_3'))  earnedBadges.push('streak_3')
-      if (newStreak >= 7  && !currentBadges.includes('streak_7'))  earnedBadges.push('streak_7')
-      if (newStreak >= 14 && !currentBadges.includes('streak_14')) earnedBadges.push('streak_14')
-      if (newStreak >= 21 && !currentBadges.includes('streak_21')) earnedBadges.push('streak_21')
-      if (newStreak >= 30 && !currentBadges.includes('streak_30')) earnedBadges.push('streak_30')
-      if ((profile?.challenge_round || 1) >= 2 && !currentBadges.includes('round_2')) earnedBadges.push('round_2')
-      const newBadgeIds = [...currentBadges, ...earnedBadges]
-      const newPoints = (profile?.points || 0) + earnedPoints
-      const { level: newLevel } = getLevel(newPoints)
+        // 포인트 계산
+        let earnedPoints = POINT_RULES.daily_record
+        const streakBonusMap: Record<number, number> = {
+          3: POINT_RULES.streak_3, 7: POINT_RULES.streak_7,
+          14: POINT_RULES.streak_14, 21: POINT_RULES.streak_21, 30: POINT_RULES.streak_30,
+        }
+        if (streakBonusMap[newStreak]) earnedPoints += streakBonusMap[newStreak]
 
-      await supabase.from('profiles').update({
-        streak: newStreak,
-        points: newPoints,
-        level: newLevel,
-        total_days: (profile?.total_days || 0) + 1,
-        badges: newBadgeIds,
-      }).eq('id', session.user.id)
+        // 뱃지 체크
+        const currentBadges: string[] = (profile?.badges as string[]) || []
+        const earnedBadges: string[] = []
+        if (!currentBadges.includes('first_record')) earnedBadges.push('first_record')
+        if (newStreak >= 3  && !currentBadges.includes('streak_3'))  earnedBadges.push('streak_3')
+        if (newStreak >= 7  && !currentBadges.includes('streak_7'))  earnedBadges.push('streak_7')
+        if (newStreak >= 14 && !currentBadges.includes('streak_14')) earnedBadges.push('streak_14')
+        if (newStreak >= 21 && !currentBadges.includes('streak_21')) earnedBadges.push('streak_21')
+        if (newStreak >= 30 && !currentBadges.includes('streak_30')) earnedBadges.push('streak_30')
+        if ((profile?.challenge_round || 1) >= 2 && !currentBadges.includes('round_2')) earnedBadges.push('round_2')
+        const newBadgeIds = [...currentBadges, ...earnedBadges]
+        const newPoints = (profile?.points || 0) + earnedPoints
+        const { level: newLevel } = getLevel(newPoints)
 
-      // 새 뱃지 획득 팝업
-      if (earnedBadges.length > 0) {
-        const badge = BADGES.find(b => b.id === earnedBadges[0])
-        if (badge) {
-          setNewBadge(badge)
-          setShowBadgePopup(true)
-          setTimeout(() => setShowBadgePopup(false), 3500)
+        await supabase.from('profiles').update({
+          streak: newStreak,
+          points: newPoints,
+          level: newLevel,
+          total_days: (profile?.total_days || 0) + 1,
+          badges: newBadgeIds,
+        }).eq('id', session.user.id)
+
+        // 새 뱃지 획득 팝업
+        if (earnedBadges.length > 0) {
+          const badge = BADGES.find(b => b.id === earnedBadges[0])
+          if (badge) {
+            setNewBadge(badge)
+            setShowBadgePopup(true)
+            setTimeout(() => setShowBadgePopup(false), 3500)
+          }
         }
       }
 
