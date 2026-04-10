@@ -53,6 +53,7 @@ export type FeedItem = {
   question_answer: string
   is_private: boolean
   created_at: string
+  goal_achieved?: boolean | null
   profiles?: Profile
   reactions?: Reaction[]
   comments?: Comment[]

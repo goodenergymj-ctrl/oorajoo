@@ -202,6 +202,24 @@ export default function App({ session }: { session: any }) {
   const [applyPledge, setApplyPledge] = useState('')
   const [applySubmitting, setApplySubmitting] = useState(false)
   const [applyDone, setApplyDone] = useState(false)
+  const [yesterdayRecord, setYesterdayRecord] = useState<FeedItem | null>(null)
+  const [retroDone, setRetroDone] = useState(false)
+  const [summaryAiMsg, setSummaryAiMsg] = useState('')
+  const [summaryAiLoading, setSummaryAiLoading] = useState(false)
+  const [summaryLoaded, setSummaryLoaded] = useState(false)
+  const [weeklyReview, setWeeklyReview] = useState<any>(null)
+  const [showWeeklyCard, setShowWeeklyCard] = useState(false)
+  const [weeklyAiMsg, setWeeklyAiMsg] = useState('')
+  const [weeklyAiLoading, setWeeklyAiLoading] = useState(false)
+  const [weeklyPledge, setWeeklyPledge] = useState('')
+  const [weeklyPledgeSaving, setWeeklyPledgeSaving] = useState(false)
+  const [gridPopup, setGridPopup] = useState<{
+    dayNum: number
+    goal: string
+    gratitude: string
+    achieveState: string
+    recordId: number | null
+  } | null>(null)
 
   // ─── 파생값 ────────────────────────────────────────────────
   const isAdmin = profile?.is_admin || false
@@ -331,6 +349,46 @@ export default function App({ session }: { session: any }) {
     if (data) setRecruitingCohort(data)
   }
 
+  const loadYesterdayRecord = async () => {
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    const yesterday = new Date(kst)
+    yesterday.setDate(kst.getDate() - 1)
+    const yDate = yesterday.toISOString().split('T')[0]
+
+    const { data } = await supabase
+      .from('feed')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .gte('created_at', yDate + 'T00:00:00+09:00')
+      .lt('created_at', yDate + 'T23:59:59+09:00')
+      .limit(1)
+      .maybeSingle()
+
+    if (data && data.goal_achieved === null) {
+      setYesterdayRecord(data as FeedItem)
+    }
+  }
+
+  const submitRetro = async (achieved: boolean) => {
+    if (!yesterdayRecord) return
+    await supabase
+      .from('feed')
+      .update({ goal_achieved: achieved })
+      .eq('id', yesterdayRecord.id)
+
+    if (achieved) {
+      await supabase
+        .from('profiles')
+        .update({ points: (profile?.points || 0) + 5 })
+        .eq('id', session.user.id)
+      await loadProfile()
+    }
+
+    setRetroDone(true)
+    setYesterdayRecord(null)
+    showToast(achieved ? '✅ 대단해요! 달성 기록 저장됐어요 +5P' : '✍️ 회고 저장됐어요. 오늘 다시 도전해봐요!')
+  }
+
   const submitApplication = async () => {
     if (!applyName.trim() || !applyPledge.trim()) return
     setApplySubmitting(true)
@@ -385,6 +443,138 @@ export default function App({ session }: { session: any }) {
       setQuestion('10년 후의 나는 오늘의 어떤 선택에 가장 감사할까요?')
     }
     setQLoading(false)
+  }
+
+  const fetchSummaryAiMessage = async () => {
+    const stored = localStorage.getItem(`summary_ai_r${challengeRound}`)
+    if (stored) { setSummaryAiMsg(stored); return }
+
+    setSummaryAiLoading(true)
+    try {
+      const myFeed = feed.filter(f => f.user_id === session.user.id)
+      const achievedCount = myFeed.filter(f => f.goal_achieved === true).length
+      const recordCount = myFeed.length
+
+      const sample = myFeed.slice(0, 10).map(f =>
+        `감사: ${f.gratitude} / 목표: ${f.goal}`
+      ).join('\n')
+
+      const res = await fetch('/api/cheer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `이 사람은 30일 챌린지를 완주했어요.
+기록 일수: ${recordCount}일, 달성 일수: ${achievedCount}일, 최장 스트릭: ${profile?.streak || 0}일
+
+대표 기록 샘플:
+${sample}
+
+위 내용을 바탕으로 이 사람의 30일을 따뜻하고 진심 어린 시선으로 3~4문장으로 총평해줘. 구체적인 내용을 언급하면 더 좋아. 존댓말로. 마지막엔 다음 라운드를 응원하는 문장으로 마무리해줘.`
+        })
+      })
+      const data = await res.json()
+      const msg = data.message || data.cheer || '30일을 버텨냈어요. 완벽하지 않아도, 포기하지 않은 날들의 합산이 진짜 성장이에요.'
+      setSummaryAiMsg(msg)
+      localStorage.setItem(`summary_ai_r${challengeRound}`, msg)
+    } catch {
+      setSummaryAiMsg('30일을 완주했어요. 쉽지 않은 여정을 끝까지 해낸 자신을 충분히 칭찬해도 돼요. 다음 라운드도 응원해요.')
+    }
+    setSummaryAiLoading(false)
+  }
+
+  const checkWeeklyReview = async () => {
+    if (![7, 14, 21, 28].includes(challengeDay)) return
+
+    const weekNum = challengeDay / 7
+
+    const { data: existing } = await supabase
+      .from('weekly_reviews')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .eq('week_number', weekNum)
+      .eq('challenge_round', challengeRound)
+      .maybeSingle()
+
+    if (existing) {
+      setWeeklyReview(existing)
+      return
+    }
+
+    const weekStart = new Date(challengeStartDate)
+    weekStart.setDate(challengeStartDate.getDate() + (weekNum - 1) * 7)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 7)
+
+    const myFeedWeek = feed.filter(f => {
+      const d = new Date(f.created_at)
+      return f.user_id === session.user.id && d >= weekStart && d < weekEnd
+    })
+
+    const achievedCount = myFeedWeek.filter(f => f.goal_achieved === true).length
+
+    const { data: newReview } = await supabase
+      .from('weekly_reviews')
+      .insert({
+        user_id: session.user.id,
+        week_number: weekNum,
+        challenge_round: challengeRound,
+        records_count: myFeedWeek.length,
+        achieved_count: achievedCount,
+      })
+      .select()
+      .single()
+
+    setWeeklyReview(newReview)
+    setShowWeeklyCard(true)
+
+    fetchWeeklyAiMessage(weekNum, myFeedWeek, achievedCount, newReview?.id ?? null)
+  }
+
+  const fetchWeeklyAiMessage = async (weekNum: number, myFeedWeek: FeedItem[], achievedCount: number, reviewId: number | null) => {
+    setWeeklyAiLoading(true)
+    try {
+      const recentItems = myFeedWeek.slice(0, 7).map(f =>
+        `감사: ${f.gratitude} / 목표: ${f.goal}${f.goal_achieved === true ? ' (달성)' : f.goal_achieved === false ? ' (미달성)' : ''}`
+      ).join('\n')
+
+      const res = await fetch('/api/cheer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `이 사람은 30일 챌린지 ${weekNum}주차를 마쳤어요. 이번 주 기록:
+${recentItems}
+
+기록 일수: ${myFeedWeek.length}/7, 달성 일수: ${achievedCount}/${myFeedWeek.length}
+
+위 기록을 바탕으로 진심 어린 응원 메시지를 2~3문장으로 써줘. 구체적인 내용을 언급하면 더 좋아. 존댓말로.`
+        })
+      })
+      const data = await res.json()
+      const msg = data.message || data.cheer || '이번 주도 정말 잘 해냈어요. 기록 하나하나가 쌓여서 단단해지고 있어요.'
+      setWeeklyAiMsg(msg)
+
+      if (reviewId) {
+        await supabase
+          .from('weekly_reviews')
+          .update({ ai_message: msg })
+          .eq('id', reviewId)
+      }
+    } catch {
+      setWeeklyAiMsg('이번 주도 포기하지 않았다는 것, 그것만으로 충분해요.')
+    }
+    setWeeklyAiLoading(false)
+  }
+
+  const saveWeeklyPledge = async () => {
+    if (!weeklyReview?.id || !weeklyPledge.trim()) return
+    setWeeklyPledgeSaving(true)
+    await supabase
+      .from('weekly_reviews')
+      .update({ pledge: weeklyPledge })
+      .eq('id', weeklyReview.id)
+    setWeeklyPledgeSaving(false)
+    setShowWeeklyCard(false)
+    showToast('📝 다짐 저장됐어요!')
   }
 
   useEffect(() => {
@@ -455,12 +645,25 @@ export default function App({ session }: { session: any }) {
     checkTodaySubmitted()
     loadWeeklyStats()
     loadRecruitingCohort()
+    loadYesterdayRecord()
   }, [])
 
   useEffect(() => {
     if (isAdmin) loadCohorts()
   }, [isAdmin])
 
+  useEffect(() => {
+    if (challengeEnded && !summaryLoaded && feed.length > 0) {
+      setSummaryLoaded(true)
+      fetchSummaryAiMessage()
+    }
+  }, [challengeEnded, feed])
+
+  useEffect(() => {
+    if (feed.length > 0 && profileLoaded) {
+      checkWeeklyReview()
+    }
+  }, [feed, profileLoaded])
 
   useEffect(() => {
     const channel = supabase.channel('realtime')
@@ -816,11 +1019,44 @@ export default function App({ session }: { session: any }) {
 
   const startNewRound = async () => {
     const newRound = (profile?.challenge_round || 1) + 1
-    await supabase.from('profiles').update({
-      challenge_started_at: new Date().toISOString(),
-      challenge_round: newRound,
-    }).eq('id', session.user.id)
+    const now = new Date().toISOString()
+
+    const currentBadges: string[] = (profile?.badges as string[]) || []
+    const newBadges = [...currentBadges]
+    if (newRound >= 2 && !newBadges.includes('round_2')) {
+      newBadges.push('round_2')
+    }
+
+    await supabase
+      .from('profiles')
+      .update({
+        challenge_round: newRound,
+        challenge_started_at: now,
+        streak: 0,
+        badges: newBadges,
+      })
+      .eq('id', session.user.id)
+
+    try { localStorage.removeItem(`summary_ai_r${challengeRound}`) } catch {}
+
+    setSubmitted(false)
+    setAiCheer('')
+    setSummaryAiMsg('')
+    setSummaryLoaded(false)
+
     await loadProfile()
+    await loadFeed()
+
+    if (newRound === 2) {
+      const badge = BADGES.find(b => b.id === 'round_2')
+      if (badge) {
+        setNewBadge(badge)
+        setShowBadgePopup(true)
+        setTimeout(() => setShowBadgePopup(false), 3500)
+      }
+    }
+
+    showToast(`🔄 ${newRound}라운드 시작! 다시 달려봐요!`)
   }
 
   const toggleFollow = async (userId: string, e: React.MouseEvent) => {
@@ -1241,9 +1477,211 @@ export default function App({ session }: { session: any }) {
     )
   }
 
+  const renderSummary = () => {
+    const myFeed = feed.filter(f => f.user_id === session.user.id)
+    const recordCount = myFeed.length
+    const achievedCount = myFeed.filter(f => f.goal_achieved === true).length
+    const maxStreak = profile?.streak || 0
+    const totalReactions = Object.entries(reactionCounts)
+      .filter(([k]) => myFeed.some(f => k.startsWith(`feed-${f.id}-`)))
+      .reduce((a, [, v]) => a + v, 0)
+
+    const gratitudeHighlights = myFeed.slice(0, 5).map(f => f.gratitude)
+    const achievedGoals = myFeed.filter(f => f.goal_achieved === true).slice(0, 5)
+    const notAchievedGoals = myFeed.filter(f => f.goal_achieved === false).slice(0, 3)
+
+    return (
+      <div style={{ padding: '0 0 40px' }}>
+        <div style={{ background: 'var(--black)', color: 'white', padding: '32px 20px 28px', textAlign: 'center' }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>🏆</div>
+          <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 6 }}>{challengeRound}라운드 완주!</div>
+          <div style={{ fontSize: 13, opacity: 0.7 }}>30일 챌린지를 끝까지 해냈어요</div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, padding: '20px 16px 0' }}>
+          {[
+            { label: '기록한 날', value: `${recordCount}일`, sub: '/ 30일' },
+            { label: '목표 달성', value: `${achievedCount}회`, sub: `달성률 ${Math.round((achievedCount / Math.max(1, recordCount)) * 100)}%` },
+            { label: '최장 스트릭', value: `${maxStreak}일`, sub: '연속 기록' },
+            { label: '받은 반응', value: `${totalReactions}개`, sub: '응원받았어요' },
+          ].map(({ label, value, sub }) => (
+            <div key={label} style={{ background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 'var(--r2)', padding: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--black)' }}>{value}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 3 }}>{label}</div>
+              <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2, opacity: 0.7 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ margin: '16px 16px 0', background: 'var(--surface)', borderRadius: 'var(--r2)', padding: '18px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', marginBottom: 10 }}>AI 총평</div>
+          {summaryAiLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.7 }}>총평을 생성하는 중...</div>
+          ) : (
+            <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>{summaryAiMsg}</div>
+          )}
+        </div>
+
+        {gratitudeHighlights.length > 0 && (
+          <div style={{ margin: '16px 16px 0' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', marginBottom: 10 }}>🙏 감사했던 것들</div>
+            {gratitudeHighlights.map((g, i) => (
+              <div key={i} style={{ fontSize: 13, color: 'var(--ink)', padding: '8px 0', borderBottom: i < gratitudeHighlights.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                {g}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {achievedGoals.length > 0 && (
+          <div style={{ margin: '16px 16px 0' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', marginBottom: 10 }}>🎯 이룬 목표들</div>
+            {achievedGoals.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink)', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 14 }}>✅</span>
+                <span>{f.goal}</span>
+              </div>
+            ))}
+            {notAchievedGoals.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink3)', padding: '7px 0', borderBottom: '1px solid var(--border)', opacity: 0.6 }}>
+                <span style={{ fontSize: 14 }}>⬜</span>
+                <span style={{ textDecoration: 'line-through' }}>{f.goal}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ margin: '24px 16px 0' }}>
+          <button
+            onClick={startNewRound}
+            style={{ width: '100%', background: 'var(--black)', color: 'white', border: 'none', borderRadius: 14, padding: '15px 0', fontSize: 15, fontWeight: 900, cursor: 'pointer', marginBottom: 10 }}
+          >
+            {challengeRound + 1}라운드 시작하기 →
+          </button>
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink3)' }}>이전 기록은 그대로 보존돼요</div>
+        </div>
+      </div>
+    )
+  }
+
   const renderToday = () => {
+    if (challengeEnded) return renderSummary()
+
     return (
     <>
+      {yesterdayRecord && !retroDone && (
+        <div style={{
+          background: 'var(--white)',
+          border: '1.5px solid var(--black)',
+          borderRadius: 'var(--r2)',
+          padding: '16px',
+          margin: '14px 16px 0',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '1px', marginBottom: 6 }}>
+            어제의 목표 달성 여부
+          </div>
+          <div style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: 'var(--black)',
+            marginBottom: 14,
+            lineHeight: 1.5,
+          }}>
+            "{yesterdayRecord.goal}"
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => submitRetro(true)}
+              style={{
+                flex: 1,
+                background: 'var(--black)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                padding: '12px 0',
+                fontSize: 14,
+                fontWeight: 900,
+                cursor: 'pointer',
+              }}
+            >
+              ✅ 달성했어요
+            </button>
+            <button
+              onClick={() => submitRetro(false)}
+              style={{
+                flex: 1,
+                background: 'var(--surface)',
+                color: 'var(--ink2)',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: '12px 0',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              ❌ 못 했어요
+            </button>
+          </div>
+        </div>
+      )}
+      {showWeeklyCard && (
+        <div style={{ background: 'var(--white)', border: '2px solid var(--black)', borderRadius: 'var(--r2)', padding: '18px 16px', margin: '0 16px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--black)' }}>
+                🗓️ {weeklyReview?.week_number}주차 점검
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 2 }}>
+                이번 주 기록 {weeklyReview?.records_count}/7일 · 달성 {weeklyReview?.achieved_count}회
+              </div>
+            </div>
+            <button
+              onClick={() => setShowWeeklyCard(false)}
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink3)', padding: 4 }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
+            {Array.from({ length: 7 }, (_, i) => (
+              <div key={i} style={{
+                flex: 1, height: 6, borderRadius: 3,
+                background: i < (weeklyReview?.records_count || 0) ? 'var(--black)' : 'var(--surface)',
+              }} />
+            ))}
+          </div>
+
+          <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 14, minHeight: 56 }}>
+            {weeklyAiLoading ? (
+              <span style={{ color: 'var(--ink3)' }}>격려 메시지 불러오는 중...</span>
+            ) : (
+              weeklyAiMsg || weeklyReview?.ai_message || '잠시 후 메시지가 표시돼요.'
+            )}
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink3)', letterSpacing: '0.5px', marginBottom: 7 }}>
+            다음 주 나에게 한마디
+          </div>
+          <textarea
+            value={weeklyPledge}
+            onChange={e => setWeeklyPledge(e.target.value)}
+            placeholder="다음 주에는 어떤 나이고 싶어요?"
+            maxLength={80}
+            rows={2}
+            style={{ width: '100%', background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: 'var(--ink)', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' as const, outline: 'none', marginBottom: 10 }}
+          />
+          <button
+            onClick={saveWeeklyPledge}
+            disabled={!weeklyPledge.trim() || weeklyPledgeSaving}
+            style={{ width: '100%', background: weeklyPledge.trim() ? 'var(--black)' : 'var(--surface)', color: weeklyPledge.trim() ? 'white' : 'var(--ink3)', border: 'none', borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 900, cursor: weeklyPledge.trim() ? 'pointer' : 'default', transition: 'all 0.2s' }}
+          >
+            {weeklyPledgeSaving ? '저장 중...' : '저장하고 다음 주 달려볼게요 →'}
+          </button>
+        </div>
+      )}
+
       {todayCompletionCount > 0 && (
         <div style={{ margin: '14px 16px 0', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 14, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔥</span>
@@ -1517,9 +1955,9 @@ export default function App({ session }: { session: any }) {
 
   const renderRecord = () => {
     const todayKST = getKSTDateString()
+    const myFeed = feed.filter(f => f.user_id === session.user.id)
     const myFeedDateSet = new Set(
-      feed
-        .filter(f => f.user_id === session.user.id)
+      myFeed
         .map(f => {
           const kst = new Date(new Date(f.created_at).getTime() + 9 * 60 * 60 * 1000)
           return kst.toISOString().split('T')[0]
@@ -1533,12 +1971,41 @@ export default function App({ session }: { session: any }) {
       const dayKST = new Date(dayDate.getTime() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
       const isToday = dayKST === todayKST
       const isFuture = dayKST > todayKST
-      const done = myFeedDateSet.has(dayKST)
-      let cellClass = 'grid-cell '
-      if (isToday) cellClass += done ? 'today' : 'today-empty'
-      else if (isFuture) cellClass += 'future'
-      else cellClass += done ? 'done' : 'missed'
-      return { dayNum: i + 1, cellClass, done, isFuture }
+
+      const record = myFeed.find(f => f.created_at.substring(0, 10) === dayKST)
+      const done = !!record
+
+      let achieveState: 'achieved' | 'not_achieved' | 'pending' | 'none' = 'none'
+      if (record) {
+        if (record.goal_achieved === true) achieveState = 'achieved'
+        else if (record.goal_achieved === false) achieveState = 'not_achieved'
+        else achieveState = 'pending'
+      }
+
+      let cellBg = 'var(--surface)'
+      let cellBorder = '1px solid var(--border)'
+      let cellColor = 'var(--ink3)'
+
+      if (isFuture) {
+        cellBg = 'transparent'
+        cellBorder = '1px dashed var(--border)'
+      } else if (achieveState === 'achieved') {
+        cellBg = 'var(--black)'
+        cellBorder = '1px solid var(--black)'
+        cellColor = 'white'
+      } else if (achieveState === 'not_achieved') {
+        cellBg = '#D1D5DB'
+        cellBorder = '1px solid #9CA3AF'
+        cellColor = '#6B7280'
+      } else if (achieveState === 'pending' || done) {
+        cellBg = '#6B7280'
+        cellBorder = '1px solid #4B5563'
+        cellColor = 'white'
+      }
+
+      if (isToday) cellBorder = '2.5px solid var(--black)'
+
+      return { dayNum: i + 1, done, isFuture, isToday, achieveState, record, cellBg, cellBorder, cellColor }
     })
 
     return (
@@ -1598,33 +2065,74 @@ export default function App({ session }: { session: any }) {
         </div>
 
         <div className="grid-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--black)' }}>30일 챌린지 현황</span>
             <span style={{ fontSize: 11, color: 'var(--ink3)' }}>
-              {gridCells.filter(c => c.done).length} / 30 완료
+              {gridCells.filter(c => c.achieveState === 'achieved').length}달성 / {gridCells.filter(c => c.done).length}기록 / 30
             </span>
           </div>
+
+          {gridCells.filter(c => c.done).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--ink3)', marginBottom: 4 }}>
+                <span>달성률</span>
+                <span style={{ fontWeight: 700, color: 'var(--black)' }}>
+                  {Math.round((gridCells.filter(c => c.achieveState === 'achieved').length / Math.max(1, gridCells.filter(c => c.done).length)) * 100)}%
+                </span>
+              </div>
+              <div style={{ height: 5, background: 'var(--surface)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  background: 'var(--black)',
+                  borderRadius: 3,
+                  width: `${Math.round((gridCells.filter(c => c.achieveState === 'achieved').length / Math.max(1, gridCells.filter(c => c.done).length)) * 100)}%`,
+                  transition: 'width 0.5s',
+                }} />
+              </div>
+            </div>
+          )}
+
           <div className="grid-wrap">
-            {gridCells.map(({ dayNum, cellClass, done, isFuture }) => (
-              <div key={dayNum} className={cellClass}>
-                <span className="grid-cell-num">{dayNum}</span>
-                {!isFuture && <span className="grid-cell-check">{done ? '✓' : '✗'}</span>}
+            {gridCells.map(({ dayNum, cellBg, cellBorder, cellColor, isFuture, done, achieveState, record }) => (
+              <div
+                key={dayNum}
+                className="grid-cell"
+                style={{ background: cellBg, border: cellBorder, cursor: done ? 'pointer' : 'default', position: 'relative' }}
+                onClick={() => {
+                  if (!record) return
+                  setGridPopup({ dayNum, goal: record.goal, gratitude: record.gratitude, achieveState, recordId: record.id })
+                }}
+              >
+                <span className="grid-cell-num" style={{ color: cellColor }}>{dayNum}</span>
+                {!isFuture && (
+                  <span className="grid-cell-check" style={{ color: cellColor }}>
+                    {achieveState === 'achieved' ? '✓' : achieveState === 'not_achieved' ? '✗' : done ? '·' : ''}
+                  </span>
+                )}
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 12, fontSize: 10, color: 'var(--ink3)' }}>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--black)', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />완료</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--surface)', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />미완료</span>
-            <span><span style={{ display: 'inline-block', width: 10, height: 10, border: '2px solid var(--black)', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />오늘</span>
+
+          <div style={{ display: 'flex', gap: 12, marginTop: 12, fontSize: 10, color: 'var(--ink3)', flexWrap: 'wrap' }}>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--black)', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />달성</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6B7280', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />기록만</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#D1D5DB', borderRadius: 3, marginRight: 4, verticalAlign: 'middle' }} />미달성</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--surface)', borderRadius: 3, border: '1px solid var(--border)', marginRight: 4, verticalAlign: 'middle' }} />기록없음</span>
           </div>
         </div>
 
+        {(profile?.challenge_round || 1) >= 2 && (
+          <div style={{ background: '#2D4A7A', color: 'white', borderRadius: 'var(--r2)', padding: '10px 14px', margin: '0 16px 10px', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
+            🔄 현재 {profile?.challenge_round}라운드 진행 중
+          </div>
+        )}
+
         <div className="stats-grid">
           {[
-            ['내 기록', `${feed.filter(f => f.user_id === session.user.id).length}개`],
+            ['내 기록', `${myFeed.length}개`],
             ['연속 스트릭', `${profile?.streak || 0}일`],
             ['이번 라운드', `${gridCells.filter(c => c.done).length}일`],
-            ['받은 반응', `${Object.entries(reactionCounts).filter(([k]) => feed.filter(f => f.user_id === session.user.id).some(f => k.startsWith(`feed-${f.id}-`))).reduce((a, [, v]) => a + v, 0)}개`],
+            ['받은 반응', `${Object.entries(reactionCounts).filter(([k]) => myFeed.some(f => k.startsWith(`feed-${f.id}-`))).reduce((a, [, v]) => a + v, 0)}개`],
           ].map(([l, v]) => (
             <div key={l} className="stat-card">
               <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--black)' }}>{v}</div>
@@ -2276,6 +2784,72 @@ export default function App({ session }: { session: any }) {
               <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', marginBottom: 5 }}>NEW BADGE</div>
               <div style={{ fontSize: 20, fontWeight: 900, color: 'white', marginBottom: 5 }}>{newBadge.label}</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{newBadge.desc}</div>
+            </div>
+          </div>
+        )}
+
+        {gridPopup && (
+          <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) setGridPopup(null) }}>
+            <div className="modal">
+              <div className="modal-handle" />
+              <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 4 }}>Day {gridPopup.dayNum}</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'flex-start' }}>
+                <span className="fc-badge">🙏 감사</span>
+                <span className="fc-text">{gridPopup.gratitude}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'flex-start' }}>
+                <span className="fc-badge">🎯 목표</span>
+                <span className="fc-text">{gridPopup.goal}</span>
+              </div>
+
+              {gridPopup.achieveState === 'achieved' && (
+                <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#166534', textAlign: 'center' }}>
+                  ✅ 달성했어요!
+                </div>
+              )}
+              {gridPopup.achieveState === 'not_achieved' && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#991B1B', textAlign: 'center' }}>
+                  ❌ 이날은 못 했어요
+                </div>
+              )}
+              {gridPopup.achieveState === 'pending' && gridPopup.recordId && (
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--ink3)', textAlign: 'center', marginBottom: 10 }}>
+                    아직 회고하지 않은 날이에요
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={async () => {
+                        await supabase.from('feed').update({ goal_achieved: true }).eq('id', gridPopup.recordId)
+                        await loadFeed()
+                        setGridPopup(null)
+                        showToast('✅ 달성 기록됐어요!')
+                      }}
+                      style={{ flex: 1, background: 'var(--black)', color: 'white', border: 'none', borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ✅ 달성했어요
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await supabase.from('feed').update({ goal_achieved: false }).eq('id', gridPopup.recordId)
+                        await loadFeed()
+                        setGridPopup(null)
+                        showToast('✍️ 기록됐어요')
+                      }}
+                      style={{ flex: 1, background: 'var(--surface)', color: 'var(--ink2)', border: '1px solid var(--border)', borderRadius: 10, padding: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ❌ 못 했어요
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => setGridPopup(null)}
+                style={{ width: '100%', background: 'none', border: 'none', fontSize: 13, color: 'var(--ink3)', padding: '12px 0 0', cursor: 'pointer' }}
+              >
+                닫기
+              </button>
             </div>
           </div>
         )}

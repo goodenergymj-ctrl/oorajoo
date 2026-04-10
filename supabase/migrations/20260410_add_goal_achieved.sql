@@ -1,0 +1,1 @@
+ALTER TABLE feed ADD COLUMN IF NOT EXISTS goal_achieved boolean DEFAULT NULL;
