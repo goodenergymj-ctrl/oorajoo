@@ -801,15 +801,28 @@ ${recentItems}
     if (!myRecord.gratitude.trim() || !myRecord.goal.trim()) return
     setSubmitting(true)
 
-    // 오늘 이미 기록했는지 확인 (삭제 후 재제출 중복 방지)
     const today = getKSTDateString()
+
+    // 오늘 보상이 이미 지급됐는지 확인 (DB 체크 + localStorage 이중 방어)
+    // 삭제 후 재제출 시 DB엔 기록이 없어도 localStorage로 감지
+    const rewardKey = `daily_reward_${session.user.id}`
+    const alreadyRewarded = (() => {
+      try {
+        const stored = localStorage.getItem(rewardKey)
+        if (stored) {
+          const { date } = JSON.parse(stored)
+          return date === today
+        }
+      } catch {}
+      return false
+    })()
     const { data: alreadyToday } = await supabase
       .from('feed')
       .select('id')
       .eq('user_id', session.user.id)
       .gte('created_at', today + 'T00:00:00+09:00')
       .limit(1)
-    const isResubmit = alreadyToday && alreadyToday.length > 0
+    const isResubmit = alreadyRewarded || (alreadyToday && alreadyToday.length > 0)
 
     const { error } = await supabase.from('feed').insert({
       user_id: session.user.id,
@@ -838,23 +851,32 @@ ${recentItems}
         const cheer = d.cheer || ''
         setAiCheer(cheer)
         if (cheer) {
-          try { localStorage.setItem('daily_cheer_v1', JSON.stringify({ date: getKSTDateString(), cheer })) } catch {}
+          try { localStorage.setItem('daily_cheer_v1', JSON.stringify({ date: today, cheer })) } catch {}
         }
       }).catch(() => {}).finally(() => setCheerLoading(false))
 
       // 재제출이 아닐 때만 streak/포인트/뱃지/total_days 업데이트
       if (!isResubmit) {
-        const todayKST = new Date(today + 'T00:00:00+09:00')
-        const yesterdayKST = new Date(todayKST.getTime() - 24 * 60 * 60 * 1000)
-        const yesterdayStr = yesterdayKST.toISOString().split('T')[0]
-        const { data: yesterdayFeed } = await supabase
+        // streak을 profile 카운터 대신 실제 feed 데이터로 재계산 (기존 오염값 수정 포함)
+        const { data: recentFeed } = await supabase
           .from('feed')
-          .select('id')
+          .select('created_at')
           .eq('user_id', session.user.id)
-          .gte('created_at', yesterdayStr + 'T00:00:00+09:00')
-          .lt('created_at', today + 'T00:00:00+09:00')
-          .limit(1)
-        const newStreak = yesterdayFeed && yesterdayFeed.length > 0 ? (profile?.streak || 0) + 1 : 1
+          .order('created_at', { ascending: false })
+          .limit(60)
+        const kstDates = new Set(
+          (recentFeed || []).map(f => {
+            const kst = new Date(new Date(f.created_at).getTime() + 9 * 60 * 60 * 1000)
+            return kst.toISOString().split('T')[0]
+          })
+        )
+        // 오늘부터 역으로 연속 날짜 카운트
+        let newStreak = 0
+        const cur = new Date(Date.now() + 9 * 60 * 60 * 1000)
+        while (kstDates.has(cur.toISOString().split('T')[0])) {
+          newStreak++
+          cur.setDate(cur.getDate() - 1)
+        }
 
         // 포인트 계산
         let earnedPoints = POINT_RULES.daily_record
@@ -885,6 +907,9 @@ ${recentItems}
           total_days: (profile?.total_days || 0) + 1,
           badges: newBadgeIds,
         }).eq('id', session.user.id)
+
+        // 오늘 보상 지급 완료 표시
+        try { localStorage.setItem(rewardKey, JSON.stringify({ date: today })) } catch {}
 
         // 새 뱃지 획득 팝업
         if (earnedBadges.length > 0) {
