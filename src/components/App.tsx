@@ -497,6 +497,10 @@ ${sample}
 
     if (existing) {
       setWeeklyReview(existing)
+      if (!existing.pledge) {
+        setWeeklyAiMsg(existing.ai_message || '')
+        setShowWeeklyCard(true)
+      }
       return
     }
 
@@ -663,7 +667,7 @@ ${recentItems}
     if (feed.length > 0 && profileLoaded) {
       checkWeeklyReview()
     }
-  }, [feed, profileLoaded])
+  }, [feed, profileLoaded, challengeDay])
 
   useEffect(() => {
     const channel = supabase.channel('realtime')
